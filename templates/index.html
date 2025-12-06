@@ -17,8 +17,8 @@
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Custom CSS with cache busting -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ range(1000, 9999) | random }}">
 </head>
 <body>
     
@@ -39,6 +39,16 @@
                     <li><a href="#architecture" class="nav-link">Architecture</a></li>
                     <li><a href="#stats" class="nav-link">Stats</a></li>
                 </ul>
+                <div class="nav-actions">
+                    <button id="historyButton" onclick="showHistoryPanel()" style="display: none;">
+                        <i class="fas fa-history"></i>
+                        <span>History</span>
+                    </button>
+                    <button id="authButton" onclick="showAuthModal('login')">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Sign In</span>
+                    </button>
+                </div>
                 <button class="mobile-menu-btn" id="mobileMenuBtn">
                     <i class="fas fa-bars"></i>
                 </button>
@@ -3742,8 +3752,8 @@
         </div>
     </footer>
 
-    <!-- Custom JavaScript -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <!-- Custom JavaScript with cache busting -->
+    <script src="{{ url_for('static', filename='js/script.js') }}?v={{ range(1000, 9999) | random }}"></script>
     
 </body>
 </html>

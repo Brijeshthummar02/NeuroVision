@@ -7,9 +7,12 @@ Features:
 - Multiple segmentation models for better tumor localization
 - Test Time Augmentation (TTA) for robust predictions
 - Advanced preprocessing and post-processing
+- User authentication and scan history (MongoDB)
+- Cloud image storage with Cloudinary
+- Detailed diagnostic reports with share functionality
 """
 
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from flask_cors import CORS
 import tensorflow as tf
 import numpy as np
@@ -19,7 +22,16 @@ import base64
 from io import BytesIO
 from PIL import Image
 import json
+import uuid
+import hashlib
+from datetime import datetime
+from functools import wraps
 from werkzeug.utils import secure_filename
+from pymongo import MongoClient
+from bson import ObjectId
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 from utilities import (
     focal_tversky, tversky_loss, tversky, 
     dice_coefficient, dice_loss, bce_dice_loss,
@@ -29,18 +41,155 @@ from utilities import (
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
+app.secret_key = 'neuroscan-ai-secret-key-2024'  # Change in production
 
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['SCAN_HISTORY_FOLDER'] = 'scan_history'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
 app.config['USE_TTA'] = True  # Enable Test Time Augmentation for higher accuracy
 app.config['USE_ENSEMBLE'] = True  # Enable ensemble predictions
 app.config['CONFIDENCE_THRESHOLD'] = 0.5  # Minimum confidence for tumor detection
 
-# Create uploads directory if it doesn't exist
+# MongoDB Configuration - Using MongoDB Atlas (Cloud)
+# You can get a free MongoDB Atlas cluster at https://www.mongodb.com/atlas
+# Replace with your MongoDB Atlas connection string
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://neuroscan:neuroscan123@cluster0.mongodb.net/?retryWrites=true&w=majority')
+MONGO_DB_NAME = os.environ.get('MONGO_DB_NAME', 'neuroscan_db')
+
+# Flag to track if MongoDB is available
+mongodb_available = False
+
+# Cloudinary Configuration
+cloudinary.config(
+    cloud_name = "deifdzc8x",
+    api_key = "679338212113732",
+    api_secret = "loNWIjTUSAJ94ICsBO5b1TPjkm0",
+    secure = True
+)
+
+# Create required directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['SCAN_HISTORY_FOLDER'], exist_ok=True)
+
+# ==================== Cloudinary Helper Functions ====================
+def upload_image_to_cloudinary(image_data, folder="neuroscan", public_id=None):
+    """Upload base64 image to Cloudinary and return the URL"""
+    try:
+        # Handle data URL format
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        result = cloudinary.uploader.upload(
+            f"data:image/png;base64,{image_data}",
+            folder=folder,
+            public_id=public_id,
+            resource_type="image"
+        )
+        return {
+            'url': result['secure_url'],
+            'public_id': result['public_id']
+        }
+    except Exception as e:
+        print(f"Cloudinary upload error: {str(e)}")
+        return None
+
+def delete_image_from_cloudinary(public_id):
+    """Delete image from Cloudinary"""
+    try:
+        cloudinary.uploader.destroy(public_id)
+        return True
+    except Exception as e:
+        print(f"Cloudinary delete error: {str(e)}")
+        return False
+
+# ==================== MongoDB Setup ====================
+mongo_client = None
+db = None
+mongodb_init_attempted = False
+
+# File-based JSON storage fallback when MongoDB is not available
+STORAGE_FILE = 'neuroscan_data.json'
+
+def load_storage():
+    """Load data from JSON file"""
+    try:
+        if os.path.exists(STORAGE_FILE):
+            with open(STORAGE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading storage: {e}")
+    return {'users': {}, 'scan_history': {}}
+
+def save_storage(data):
+    """Save data to JSON file"""
+    try:
+        with open(STORAGE_FILE, 'w') as f:
+            json.dump(data, f, default=str)
+    except Exception as e:
+        print(f"Error saving storage: {e}")
+
+# Load existing data on startup
+memory_storage = load_storage()
+
+def init_mongodb():
+    """Initialize MongoDB connection"""
+    global mongo_client, db, mongodb_available, mongodb_init_attempted
+    
+    # Only try once
+    if mongodb_init_attempted:
+        return mongodb_available
+    
+    mongodb_init_attempted = True
+    
+    try:
+        # Try to connect to MongoDB with a short timeout
+        mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        db = mongo_client[MONGO_DB_NAME]
+        
+        # Test connection
+        mongo_client.admin.command('ping')
+        
+        # Create indexes for better performance
+        db.users.create_index('email', unique=True)
+        db.scan_history.create_index('user_id')
+        db.scan_history.create_index('share_token', unique=True, sparse=True)
+        db.scan_history.create_index('scan_date')
+        
+        mongodb_available = True
+        print("✓ Connected to MongoDB successfully")
+        return True
+    except Exception as e:
+        mongodb_available = False
+        print(f"⚠ MongoDB connection failed: {str(e)}")
+        print("  Using in-memory storage as fallback")
+        print("  Note: Data will not persist after server restart")
+        return False
+
+def get_db():
+    """Get MongoDB database instance"""
+    global db, mongodb_available, mongodb_init_attempted
+    # Try to initialize if not done yet
+    if not mongodb_init_attempted:
+        init_mongodb()
+    if not mongodb_available:
+        return None
+    return db
+
+def hash_password(password):
+    """Hash password with SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def login_required(f):
+    """Decorator to require login for routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required', 'authenticated': False}), 401
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Global variables for models (ensemble support)
 classification_models = []  # List of classification models for ensemble
@@ -481,17 +630,198 @@ def predict_tumor(image_path):
         # Calculate severity assessment
         if tumor_percentage > 10:
             severity = 'High'
+            severity_color = '#dc2626'
+            urgency = 'Immediate'
         elif tumor_percentage > 5:
             severity = 'Moderate'
+            severity_color = '#f59e0b'
+            urgency = 'Priority'
         elif tumor_percentage > 1:
             severity = 'Low'
+            severity_color = '#10b981'
+            urgency = 'Routine'
         else:
             severity = 'Minimal'
+            severity_color = '#3b82f6'
+            urgency = 'Monitor'
+        
+        # Determine tumor location based on centroid
+        img_center_x, img_center_y = 128, 128  # Center of 256x256 image
+        if centroid:
+            cx, cy = centroid['x'], centroid['y']
+            
+            # Determine quadrant/region
+            if cy < img_center_y * 0.6:
+                vertical_pos = 'Superior (Upper)'
+            elif cy > img_center_y * 1.4:
+                vertical_pos = 'Inferior (Lower)'
+            else:
+                vertical_pos = 'Central'
+            
+            if cx < img_center_x * 0.6:
+                horizontal_pos = 'Left Hemisphere'
+            elif cx > img_center_x * 1.4:
+                horizontal_pos = 'Right Hemisphere'
+            else:
+                horizontal_pos = 'Midline'
+            
+            location = f"{vertical_pos} - {horizontal_pos}"
+            
+            # Calculate distance from center (normalized)
+            dist_from_center = np.sqrt((cx - img_center_x)**2 + (cy - img_center_y)**2) / img_center_x
+            if dist_from_center < 0.3:
+                location_risk = 'Central location - may affect critical structures'
+            elif dist_from_center < 0.6:
+                location_risk = 'Intermediate location - moderate accessibility'
+            else:
+                location_risk = 'Peripheral location - better surgical accessibility'
+        else:
+            location = 'Unable to determine'
+            location_risk = 'N/A'
+        
+        # Estimate tumor characteristics
+        if bbox:
+            aspect_ratio = bbox['width'] / max(bbox['height'], 1)
+            if 0.7 <= aspect_ratio <= 1.3:
+                shape = 'Roughly spherical/circular'
+            elif aspect_ratio < 0.7:
+                shape = 'Vertically elongated'
+            else:
+                shape = 'Horizontally elongated'
+            
+            # Estimated size in mm (assuming 256px = ~200mm brain width)
+            pixel_to_mm = 200 / 256
+            estimated_width_mm = bbox['width'] * pixel_to_mm
+            estimated_height_mm = bbox['height'] * pixel_to_mm
+            estimated_area_mm2 = tumor_pixels * (pixel_to_mm ** 2)
+        else:
+            shape = 'Unable to determine'
+            estimated_width_mm = 0
+            estimated_height_mm = 0
+            estimated_area_mm2 = 0
+        
+        # Generate detailed recommendations based on severity
+        if severity == 'High':
+            recommendations = [
+                'Immediate consultation with a neuro-oncologist recommended',
+                'Additional imaging (contrast-enhanced MRI, PET scan) advised',
+                'Tumor board review for treatment planning',
+                'Consider surgical evaluation for biopsy or resection',
+                'Regular monitoring every 2-4 weeks during treatment'
+            ]
+        elif severity == 'Moderate':
+            recommendations = [
+                'Schedule consultation with neurologist within 1-2 weeks',
+                'Consider additional contrast-enhanced MRI',
+                'Baseline cognitive assessment recommended',
+                'Follow-up scan in 4-6 weeks',
+                'Discuss treatment options with specialist'
+            ]
+        elif severity == 'Low':
+            recommendations = [
+                'Follow-up with primary care physician',
+                'Repeat MRI in 3-6 months for monitoring',
+                'Document any new neurological symptoms',
+                'Maintain regular health check-ups',
+                'Consider specialist referral if symptoms develop'
+            ]
+        else:
+            recommendations = [
+                'Continue routine health monitoring',
+                'Report any new symptoms to healthcare provider',
+                'Follow-up scan in 6-12 months if needed',
+                'Maintain healthy lifestyle',
+                'No immediate intervention required'
+            ]
         
         result['severity_assessment'] = {
             'level': severity,
+            'severity_color': severity_color,
+            'urgency': urgency,
             'tumor_coverage': f"{tumor_percentage:.2f}%",
-            'recommendation': 'Consult with a neurologist for further evaluation.' if tumor_percentage > 1 else 'Minor anomaly detected. Follow-up recommended.'
+            'recommendation': recommendations[0]
+        }
+        
+        # Add detailed report data
+        result['detailed_report'] = {
+            'scan_id': str(uuid.uuid4())[:8].upper(),
+            'scan_date': datetime.now().isoformat(),
+            'patient_type': 'Anonymous',
+            'scan_type': 'Brain MRI (T1-weighted)',
+            'image_resolution': '256 × 256 pixels',
+            
+            'tumor_characteristics': {
+                'detected': True,
+                'confidence_score': f"{confidence * 100:.1f}%",
+                'coverage_percentage': f"{tumor_percentage:.2f}%",
+                'affected_pixels': f"{tumor_pixels:,}",
+                'total_pixels': f"{total_pixels:,}",
+                'estimated_size': {
+                    'width_mm': f"{estimated_width_mm:.1f}",
+                    'height_mm': f"{estimated_height_mm:.1f}",
+                    'area_mm2': f"{estimated_area_mm2:.1f}"
+                },
+                'shape_assessment': shape,
+                'location': location,
+                'location_risk': location_risk
+            },
+            
+            'severity_details': {
+                'level': severity,
+                'color': severity_color,
+                'urgency': urgency,
+                'description': f"Based on AI analysis, the detected abnormality covers {tumor_percentage:.2f}% of the scan area, classified as {severity.lower()} severity requiring {urgency.lower()} attention."
+            },
+            
+            'bounding_box': bbox,
+            'centroid': centroid,
+            'mask_confidence': f"{float(np.mean(mask_raw[mask_binary == 1])) * 100:.1f}%" if tumor_pixels > 0 else "N/A",
+            
+            'recommendations': recommendations,
+            
+            'analysis_metadata': {
+                'models_used': [name for name, _ in classification_models] + [name for name, _ in segmentation_models],
+                'tta_enabled': app.config['USE_TTA'],
+                'ensemble_enabled': app.config['USE_ENSEMBLE'],
+                'processing_time': 'Real-time',
+                'ai_version': '2.0.0'
+            },
+            
+            'disclaimer': 'This AI-generated report is intended for informational purposes only and should not replace professional medical diagnosis. Please consult with qualified healthcare professionals for proper diagnosis and treatment planning.'
+        }
+    else:
+        # No tumor detected - add basic report
+        result['detailed_report'] = {
+            'scan_id': str(uuid.uuid4())[:8].upper(),
+            'scan_date': datetime.now().isoformat(),
+            'patient_type': 'Anonymous',
+            'scan_type': 'Brain MRI (T1-weighted)',
+            'image_resolution': '256 × 256 pixels',
+            
+            'tumor_characteristics': {
+                'detected': False,
+                'confidence_score': f"{confidence * 100:.1f}%",
+                'coverage_percentage': '0.00%',
+                'description': 'No abnormal tissue masses detected in this scan.'
+            },
+            
+            'recommendations': [
+                'No immediate concerns identified',
+                'Continue regular health check-ups',
+                'Report any new neurological symptoms',
+                'Maintain healthy lifestyle habits',
+                'Follow-up as advised by your physician'
+            ],
+            
+            'analysis_metadata': {
+                'models_used': [name for name, _ in classification_models],
+                'tta_enabled': app.config['USE_TTA'],
+                'ensemble_enabled': app.config['USE_ENSEMBLE'],
+                'processing_time': 'Real-time',
+                'ai_version': '2.0.0'
+            },
+            
+            'disclaimer': 'This AI-generated report is intended for informational purposes only. A negative result does not guarantee absence of pathology. Please consult with qualified healthcare professionals for comprehensive evaluation.'
         }
     
     return result
@@ -630,10 +960,478 @@ def too_large(e):
     return jsonify({'error': 'File is too large. Maximum size is 16MB.'}), 413
 
 
+@app.errorhandler(404)
+def not_found(e):
+    """Handle 404 errors - return JSON for API routes"""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Endpoint not found', 'path': request.path}), 404
+    return render_template('index.html')
+
+
 @app.errorhandler(500)
 def internal_error(e):
     """Handle internal server errors"""
-    return jsonify({'error': 'Internal server error. Please try again.'}), 500
+    print(f"500 Error: {str(e)}")
+    return jsonify({'error': 'Internal server error. Please try again.', 'details': str(e)}), 500
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all unhandled exceptions"""
+    print(f"Unhandled exception: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    return jsonify({'error': 'Server error', 'details': str(e)}), 500
+
+
+# ==================== Authentication Routes ====================
+
+@app.route('/api/auth/signup', methods=['POST'])
+def signup():
+    """Register a new user"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        name = data.get('name', '').strip()
+        
+        # Validation
+        if not email or not password or not name:
+            return jsonify({'error': 'Email, password, and name are required'}), 400
+        
+        if len(password) < 6:
+            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        
+        if '@' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
+        
+        user_id = str(uuid.uuid4())
+        password_hash = hash_password(password)
+        
+        database = get_db()
+        
+        if database is not None:
+            # Use MongoDB
+            existing_user = database.users.find_one({'email': email})
+            if existing_user:
+                return jsonify({'error': 'Email already registered'}), 400
+            
+            user_doc = {
+                '_id': user_id,
+                'email': email,
+                'password_hash': password_hash,
+                'name': name,
+                'created_at': datetime.now(),
+                'last_login': None
+            }
+            
+            database.users.insert_one(user_doc)
+        else:
+            # Use file-based storage
+            if email in memory_storage['users']:
+                return jsonify({'error': 'Email already registered'}), 400
+            
+            memory_storage['users'][email] = {
+                '_id': user_id,
+                'email': email,
+                'password_hash': password_hash,
+                'name': name,
+                'created_at': str(datetime.now()),
+                'last_login': None
+            }
+            save_storage(memory_storage)  # Persist to file
+        
+        # Set session
+        session['user_id'] = user_id
+        session['user_email'] = email
+        session['user_name'] = name
+        
+        return jsonify({
+            'success': True,
+            'message': 'Account created successfully',
+            'user': {
+                'id': user_id,
+                'email': email,
+                'name': name
+            }
+        })
+        
+    except Exception as e:
+        print(f"Signup error: {str(e)}")
+        return jsonify({'error': f'Signup failed: {str(e)}'}), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Login user"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({'error': 'Email and password are required'}), 400
+        
+        database = get_db()
+        user = None
+        
+        if database is not None:
+            # Use MongoDB
+            user = database.users.find_one({'email': email})
+        else:
+            # Use in-memory storage
+            user = memory_storage['users'].get(email)
+        
+        if not user or user['password_hash'] != hash_password(password):
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        if database is not None:
+            # Update last login in MongoDB
+            database.users.update_one(
+                {'_id': user['_id']},
+                {'$set': {'last_login': datetime.now()}}
+            )
+        else:
+            # Update in file storage
+            memory_storage['users'][email]['last_login'] = str(datetime.now())
+            save_storage(memory_storage)  # Persist to file
+        
+        # Set session
+        session['user_id'] = user['_id']
+        session['user_email'] = user['email']
+        session['user_name'] = user['name']
+        
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'user': {
+                'id': user['_id'],
+                'email': user['email'],
+                'name': user['name']
+            }
+        })
+        
+    except Exception as e:
+        print(f"Login error: {str(e)}")
+        return jsonify({'error': f'Login failed: {str(e)}'}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """Logout user"""
+    session.clear()
+    return jsonify({'success': True, 'message': 'Logged out successfully'})
+
+
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    """Check authentication status"""
+    if 'user_id' in session:
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'id': session['user_id'],
+                'email': session.get('user_email'),
+                'name': session.get('user_name')
+            }
+        })
+    return jsonify({'authenticated': False})
+
+
+# ==================== Scan History Routes ====================
+
+@app.route('/api/history/save', methods=['POST'])
+def save_scan():
+    """Save scan to user history with Cloudinary image storage"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Check if user is logged in
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({
+                'error': 'Please login to save scans',
+                'authenticated': False
+            }), 401
+        
+        # Generate share token
+        share_token = str(uuid.uuid4())[:12]
+        scan_id = str(uuid.uuid4())
+        
+        database = get_db()
+        
+        # Upload images to Cloudinary
+        original_url = None
+        mask_url = None
+        overlay_url = None
+        cloudinary_ids = []
+        
+        folder = f"neuroscan/{user_id}"
+        
+        # Upload original image to Cloudinary
+        if data.get('original_image'):
+            result = upload_image_to_cloudinary(
+                data['original_image'],
+                folder=folder,
+                public_id=f"{scan_id}_original"
+            )
+            if result:
+                original_url = result['url']
+                cloudinary_ids.append(result['public_id'])
+        
+        # Upload mask image to Cloudinary
+        if data.get('segmentation', {}).get('mask'):
+            result = upload_image_to_cloudinary(
+                data['segmentation']['mask'],
+                folder=folder,
+                public_id=f"{scan_id}_mask"
+            )
+            if result:
+                mask_url = result['url']
+                cloudinary_ids.append(result['public_id'])
+        
+        # Upload overlay image to Cloudinary
+        if data.get('segmentation', {}).get('overlay'):
+            result = upload_image_to_cloudinary(
+                data['segmentation']['overlay'],
+                folder=folder,
+                public_id=f"{scan_id}_overlay"
+            )
+            if result:
+                overlay_url = result['url']
+                cloudinary_ids.append(result['public_id'])
+        
+        # If Cloudinary upload failed, keep the base64 image for display
+        if not original_url and data.get('original_image'):
+            original_url = data.get('original_image')
+        
+        # Create scan document
+        current_time = datetime.now()
+        scan_doc = {
+            '_id': scan_id,
+            'user_id': user_id,
+            'scan_date': current_time.isoformat(),  # Store as ISO string for JSON
+            'has_tumor': data.get('has_tumor', False),
+            'confidence': data.get('confidence', 0),
+            'tumor_percentage': data.get('segmentation', {}).get('tumor_area_percentage', 0),
+            'severity': data.get('severity_assessment', {}).get('level', 'N/A'),
+            'original_image_url': original_url,
+            'mask_image_url': mask_url,
+            'overlay_image_url': overlay_url,
+            'cloudinary_ids': cloudinary_ids,
+            'report_data': data,
+            'share_token': share_token
+        }
+        
+        print(f"Saving scan for user {user_id}: {scan_id}")
+        
+        if database is not None:
+            scan_doc['scan_date'] = current_time  # MongoDB can handle datetime
+            database.scan_history.insert_one(scan_doc)
+            print(f"Saved to MongoDB")
+        else:
+            # Use file-based storage
+            if user_id not in memory_storage['scan_history']:
+                memory_storage['scan_history'][user_id] = []
+            memory_storage['scan_history'][user_id].append(scan_doc)
+            save_storage(memory_storage)  # Persist to file
+            print(f"Saved to file storage. Total scans for user: {len(memory_storage['scan_history'][user_id])}")
+        
+        return jsonify({
+            'success': True,
+            'scan_id': scan_id,
+            'share_token': share_token,
+            'share_url': f"/share/{share_token}",
+            'images': {
+                'original': original_url,
+                'mask': mask_url,
+                'overlay': overlay_url
+            }
+        })
+        
+    except Exception as e:
+        print(f"Save scan error: {str(e)}")
+        return jsonify({'error': f'Failed to save scan: {str(e)}'}), 500
+
+
+@app.route('/api/history', methods=['GET'])
+@login_required
+def get_history():
+    """Get user's scan history"""
+    user_id = session['user_id']
+    print(f"Getting history for user: {user_id}")
+    
+    try:
+        database = get_db()
+        scans = []
+        
+        if database is not None:
+            print("Using MongoDB for history")
+            # Get from MongoDB
+            cursor = database.scan_history.find(
+                {'user_id': user_id}
+            ).sort('scan_date', -1).limit(50)
+            
+            for doc in cursor:
+                report_data = doc.get('report_data', {})
+                scans.append({
+                    'id': doc['_id'],
+                    'date': doc['scan_date'].isoformat() if doc.get('scan_date') else None,
+                    'has_tumor': doc.get('has_tumor', False),
+                    'confidence': doc.get('confidence', 0),
+                    'tumor_percentage': doc.get('tumor_percentage', 0),
+                    'severity': doc.get('severity', 'N/A'),
+                    'share_token': doc.get('share_token'),
+                    'original_image': doc.get('original_image_url') or report_data.get('original_image'),
+                    'mask_image': doc.get('mask_image_url'),
+                    'overlay_image': doc.get('overlay_image_url'),
+                    'detailed_report': report_data.get('detailed_report')
+                })
+        else:
+            # Get from file-based storage
+            print("Using file-based storage for history")
+            user_scans = memory_storage['scan_history'].get(user_id, [])
+            print(f"Found {len(user_scans)} scans in storage for user {user_id}")
+            for doc in sorted(user_scans, key=lambda x: x.get('scan_date', ''), reverse=True)[:50]:
+                report_data = doc.get('report_data', {})
+                # scan_date is already an ISO string for file storage
+                scan_date = doc.get('scan_date')
+                scans.append({
+                    'id': doc['_id'],
+                    'date': scan_date,
+                    'has_tumor': doc.get('has_tumor', False),
+                    'confidence': doc.get('confidence', 0),
+                    'tumor_percentage': doc.get('tumor_percentage', 0),
+                    'severity': doc.get('severity', 'N/A'),
+                    'share_token': doc.get('share_token'),
+                    'original_image': doc.get('original_image_url') or report_data.get('original_image'),
+                    'mask_image': doc.get('mask_image_url'),
+                    'overlay_image': doc.get('overlay_image_url'),
+                    'detailed_report': report_data.get('detailed_report')
+                })
+        
+        return jsonify({
+            'success': True,
+            'scans': scans,
+            'total': len(scans)
+        })
+        
+    except Exception as e:
+        print(f"Get history error: {str(e)}")
+        return jsonify({'error': f'Failed to get history: {str(e)}'}), 500
+
+
+@app.route('/api/history/<scan_id>', methods=['GET'])
+def get_scan_detail(scan_id):
+    """Get detailed scan by ID"""
+    try:
+        database = get_db()
+        doc = None
+        
+        if database is not None:
+            # Find in MongoDB by scan_id or share_token
+            doc = database.scan_history.find_one({
+                '$or': [
+                    {'_id': scan_id},
+                    {'share_token': scan_id}
+                ]
+            })
+        else:
+            # Find in in-memory storage
+            for user_scans in memory_storage['scan_history'].values():
+                for scan in user_scans:
+                    if scan['_id'] == scan_id or scan.get('share_token') == scan_id:
+                        doc = scan
+                        break
+        
+        if not doc:
+            return jsonify({'error': 'Scan not found'}), 404
+        
+        report_data = doc.get('report_data', {})
+        
+        return jsonify({
+            'success': True,
+            'scan': {
+                'id': doc['_id'],
+                'date': doc['scan_date'].isoformat() if doc.get('scan_date') else None,
+                'has_tumor': doc.get('has_tumor', False),
+                'confidence': doc.get('confidence', 0),
+                'tumor_percentage': doc.get('tumor_percentage', 0),
+                'severity': doc.get('severity', 'N/A'),
+                'share_token': doc.get('share_token'),
+                **report_data
+            }
+        })
+        
+    except Exception as e:
+        print(f"Get scan detail error: {str(e)}")
+        return jsonify({'error': f'Failed to get scan: {str(e)}'}), 500
+
+
+@app.route('/api/history/<scan_id>', methods=['DELETE'])
+@login_required
+def delete_scan(scan_id):
+    """Delete a scan from history and Cloudinary"""
+    user_id = session['user_id']
+    
+    try:
+        database = get_db()
+        doc = None
+        
+        if database is not None:
+            # Get scan info from MongoDB
+            doc = database.scan_history.find_one({
+                '_id': scan_id,
+                'user_id': user_id
+            })
+            
+            if not doc:
+                return jsonify({'error': 'Scan not found or unauthorized'}), 404
+            
+            # Delete images from Cloudinary
+            cloudinary_ids = doc.get('cloudinary_ids', [])
+            for public_id in cloudinary_ids:
+                delete_image_from_cloudinary(public_id)
+            
+            # Delete from database
+            database.scan_history.delete_one({'_id': scan_id})
+        else:
+            # Delete from file storage
+            user_scans = memory_storage['scan_history'].get(user_id, [])
+            for i, scan in enumerate(user_scans):
+                if scan['_id'] == scan_id:
+                    doc = user_scans.pop(i)
+                    # Delete from Cloudinary
+                    for public_id in doc.get('cloudinary_ids', []):
+                        delete_image_from_cloudinary(public_id)
+                    save_storage(memory_storage)  # Persist to file
+                    break
+            
+            if not doc:
+                return jsonify({'error': 'Scan not found or unauthorized'}), 404
+        
+        return jsonify({'success': True, 'message': 'Scan deleted successfully'})
+        
+    except Exception as e:
+        print(f"Delete scan error: {str(e)}")
+        return jsonify({'error': f'Failed to delete scan: {str(e)}'}), 500
+
+
+@app.route('/share/<token>')
+def share_scan(token):
+    """Public share page for a scan"""
+    return render_template('index.html', share_token=token)
 
 
 if __name__ == '__main__':
@@ -646,7 +1444,19 @@ if __name__ == '__main__':
     print("   • CLAHE image enhancement for better contrast")
     print("   • Post-processing for cleaner segmentation masks")
     print("   • Severity assessment and recommendations")
+    print("   • User authentication and scan history (MongoDB)")
+    print("   • Cloud image storage (Cloudinary)")
+    print("   • Detailed diagnostic reports with share functionality")
     print("\nInitializing application...")
+    
+    # Initialize MongoDB
+    if init_mongodb():
+        print("✓ MongoDB connected successfully")
+    else:
+        print("⚠ Running without database - authentication features disabled")
+    
+    # Verify Cloudinary configuration
+    print("✓ Cloudinary configured (cloud: deifdzc8x)")
     
     # Load models
     if load_models():
@@ -658,6 +1468,9 @@ if __name__ == '__main__':
         print("📍 Access the application at: http://localhost:5000")
         print("📊 API Health Check: http://localhost:5000/api/health")
         print("⚙️  API Configuration: http://localhost:5000/api/config")
+        print("🔐 Authentication: http://localhost:5000/api/auth/status")
+        print("🗄️  Database: MongoDB")
+        print("☁️  Image Storage: Cloudinary")
         print("=" * 70)
         app.run(debug=True, host='0.0.0.0', port=5000)
     else:
