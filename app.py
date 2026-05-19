@@ -828,9 +828,15 @@ def predict_tumor(image_path):
 
 
 # Routes
+# Routes
+
 @app.route('/')
-def index():
-    """Render main page"""
+def landing():
+    return render_template('landing.html')
+
+
+@app.route('/scan')
+def scan():
     return render_template('index.html')
 
 
