@@ -13,6 +13,7 @@ Features:
 """
 
 from dotenv import load_dotenv
+import logging
 import os
 
 load_dotenv()
@@ -63,6 +64,22 @@ from utilities import (
     iou_score, sensitivity, specificity, precision_metric,
     predict_with_tta_classification, predict_with_tta_segmentation
 )
+from validators import (
+    ValidationError,
+    validate_file_present,
+    validate_file_extension,
+    validate_file_size,
+    validate_mime_type,
+    validate_image_loadable,
+    validate_tensor_shape,
+)
+
+# Configure module-level logger
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+)
+logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -72,7 +89,7 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY')
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SCAN_HISTORY_FOLDER'] = 'scan_history'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_UPLOAD_MB', '16')) * 1024 * 1024
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
 app.config['USE_TTA'] = True  # Enable Test Time Augmentation for higher accuracy
 app.config['USE_ENSEMBLE'] = True  # Enable ensemble predictions
@@ -541,11 +558,12 @@ def predict_tumor(image_path):
     # Read image
     img_original = cv2.imread(image_path)
     if img_original is None:
-        # Try with PIL for better format support
+        # Try with PIL for better format support (e.g. 16-bit TIFF)
         try:
             img_pil = Image.open(image_path)
             img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-        except:
+        except Exception as exc:
+            logger.warning("predict_tumor: could not load image '%s' — %s", image_path, exc)
             return None
     
     # ============================================================
@@ -875,61 +893,107 @@ def health_check():
 @app.route('/api/predict', methods=['POST'])
 def predict():
     """Handle image upload and prediction"""
-    
+
     if not models_loaded:
         return jsonify({
-            'error': 'Models not loaded. Please restart the server.'
+            'error': True,
+            'code': 'MODELS_NOT_LOADED',
+            'message': 'Models not loaded. Please restart the server.',
         }), 500
-    
-    # Check if file is present
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    
-    file = request.files['file']
-    
-    # Check if file is selected
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    # Check if file is allowed
-    if not allowed_file(file.filename):
-        return jsonify({
-            'error': 'Invalid file type. Allowed types: PNG, JPG, JPEG, TIF, TIFF'
-        }), 400
-    
+
+    filepath = None
     try:
-        # Save uploaded file
+        # ------------------------------------------------------------------
+        # Step 1: file present
+        # ------------------------------------------------------------------
+        file = request.files.get('file')
+        validate_file_present(file)
+
+        # ------------------------------------------------------------------
+        # Step 2: extension allowlist
+        # ------------------------------------------------------------------
+        validate_file_extension(file.filename)
+
+        # ------------------------------------------------------------------
+        # Step 3: file size (stream-based, before disk write)
+        # ------------------------------------------------------------------
+        validate_file_size(file.stream)
+
+        # ------------------------------------------------------------------
+        # Step 4: magic-byte MIME check
+        # ------------------------------------------------------------------
+        validate_mime_type(file.stream)
+
+        # ------------------------------------------------------------------
+        # Step 5: PIL stream integrity check (Pass 1 — before disk write)
+        # ------------------------------------------------------------------
+        validate_image_loadable(file_stream=file.stream)
+
+        # ------------------------------------------------------------------
+        # Step 6: save to disk
+        # ------------------------------------------------------------------
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        
-        # Read and convert original image to PNG for browser compatibility
+
+        # ------------------------------------------------------------------
+        # Step 7: OpenCV + PIL path check (Pass 2 — after disk write)
+        # ------------------------------------------------------------------
+        validate_image_loadable(filepath=filepath)
+
+        # ------------------------------------------------------------------
+        # Step 8: read image for base64 preview
+        # ------------------------------------------------------------------
         img_original = cv2.imread(filepath)
         if img_original is None:
-            # Try with PIL for TIFF support
-            img_pil = Image.open(filepath)
-            img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-        
-        # Convert to PNG and encode as base64
+            try:
+                img_pil = Image.open(filepath)
+                img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+            except Exception as exc:
+                logger.warning("predict: fallback PIL load failed for '%s' — %s", filepath, exc)
+                raise ValidationError(
+                    message="Image could not be decoded for preview. Please try a different file.",
+                    code="CORRUPTED_IMAGE",
+                    http_status=422,
+                ) from exc
+
         _, img_buffer = cv2.imencode('.png', img_original)
         img_base64 = base64.b64encode(img_buffer).decode('utf-8')
-        
-        # Make prediction
+
+        # ------------------------------------------------------------------
+        # Step 9: run preprocessing + inference
+        # ------------------------------------------------------------------
+        img_class = preprocess_image_classification(img_original.copy())
+        validate_tensor_shape(img_class, (1, 256, 256, 3))
+
         prediction_result = predict_tumor(filepath)
-        
+
         if prediction_result is None:
-            return jsonify({'error': 'Failed to process image'}), 500
-        
-        # Add original image to result
+            logger.error("predict_tumor returned None for '%s'", filepath)
+            return jsonify({
+                'error': True,
+                'code': 'INFERENCE_FAILED',
+                'message': 'Inference failed. Please try a different scan.',
+            }), 500
+
         prediction_result['original_image'] = f"data:image/png;base64,{img_base64}"
-        
-        # Clean up uploaded file (optional)
-        # os.remove(filepath)
-        
         return jsonify(prediction_result)
-        
+
+    except ValidationError as ve:
+        logger.warning("Upload validation failed [%s]: %s", ve.code, ve.message)
+        return jsonify({
+            'error': True,
+            'code': ve.code,
+            'message': ve.message,
+        }), ve.http_status
+
     except Exception as e:
-        return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
+        logger.exception("Unexpected error in /api/predict")
+        return jsonify({
+            'error': True,
+            'code': 'PREDICTION_FAILED',
+            'message': 'An unexpected error occurred during prediction. Please try again.',
+        }), 500
 
 
 @app.route('/api/stats', methods=['GET'])
@@ -985,31 +1049,46 @@ def config():
 @app.errorhandler(413)
 def too_large(e):
     """Handle file too large error"""
-    return jsonify({'error': 'File is too large. Maximum size is 16MB.'}), 413
+    max_mb = int(os.getenv('MAX_UPLOAD_MB', '16'))
+    return jsonify({
+        'error': True,
+        'code': 'FILE_TOO_LARGE',
+        'message': f'File exceeds the maximum allowed upload size of {max_mb} MB.',
+    }), 413
 
 
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors - return JSON for API routes"""
     if request.path.startswith('/api/'):
-        return jsonify({'error': 'Endpoint not found', 'path': request.path}), 404
+        return jsonify({
+            'error': True,
+            'code': 'NOT_FOUND',
+            'message': f"Endpoint not found: {request.path}",
+        }), 404
     return render_template('index.html')
 
 
 @app.errorhandler(500)
 def internal_error(e):
     """Handle internal server errors"""
-    print(f"500 Error: {str(e)}")
-    return jsonify({'error': 'Internal server error. Please try again.', 'details': str(e)}), 500
+    logger.error("500 error: %s", e)
+    return jsonify({
+        'error': True,
+        'code': 'INTERNAL_SERVER_ERROR',
+        'message': 'Internal server error. Please try again.',
+    }), 500
 
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions"""
-    print(f"Unhandled exception: {str(e)}")
-    import traceback
-    traceback.print_exc()
-    return jsonify({'error': 'Server error', 'details': str(e)}), 500
+    logger.exception("Unhandled exception: %s", e)
+    return jsonify({
+        'error': True,
+        'code': 'SERVER_ERROR',
+        'message': 'An unexpected server error occurred.',
+    }), 500
 
 
 # ==================== Authentication Routes ====================
