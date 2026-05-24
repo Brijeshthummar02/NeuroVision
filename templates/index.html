@@ -1201,7 +1201,7 @@
                             </div>
 
                             <div class="upload-zone-v2" id="uploadArea">
-                                <input type="file" id="fileInput" accept="image/*,.tif,.tiff" hidden>
+                                <input type="file" id="fileInput" accept="image/*,.tif,.tiff" multiple hidden>
                                 
                                 <div class="upload-visual">
                                     <div class="upload-animation">
@@ -1236,6 +1236,8 @@
                             </div>
 
                             <!-- Image Preview -->
+
+
                             <div class="image-preview-v2" id="imagePreview" style="display: none;">
                                 <div class="preview-header">
                                     <span class="preview-label"><i class="fas fa-file-image"></i> Uploaded Scan</span>
@@ -1251,6 +1253,94 @@
                                             Ready for Analysis
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Multi MRI Preview Section -->
+                            <div class="multi-mri-preview mt-4">
+
+                                <h3 style="
+                                    color:white;
+                                    margin-bottom:20px;
+                                    font-size:24px;
+                                    font-weight:700;
+                                ">
+                                    Multi-Modal MRI Comparison
+                                </h3>
+
+                                <div style="
+                                    display:flex;
+                                    gap:20px;
+                                    flex-wrap:wrap;
+                                    justify-content:center;
+                                ">
+
+                                    <!-- T1 MRI -->
+                                    <div style="
+                                        background:#111827;
+                                        padding:16px;
+                                        border-radius:20px;
+                                        width:220px;
+                                        box-shadow:0 4px 20px rgba(0,0,0,0.25);
+                                    ">
+                                        <img src="/static/sample1.jpg"
+                                            style="
+                                                width:100%;
+                                                border-radius:14px;
+                                                margin-bottom:12px;
+                                            ">
+
+                                        <h4 style="color:white;">T1 MRI</h4>
+
+                                        <p style="color:#cbd5e1;">
+                                            Confidence: 92%
+                                        </p>
+                                    </div>
+
+                                    <!-- T2 MRI -->
+                                    <div style="
+                                        background:#111827;
+                                        padding:16px;
+                                        border-radius:20px;
+                                        width:220px;
+                                        box-shadow:0 4px 20px rgba(0,0,0,0.25);
+                                    ">
+                                        <img src="/static/sample2.jpg"
+                                            style="
+                                                width:100%;
+                                                border-radius:14px;
+                                                margin-bottom:12px;
+                                            ">
+
+                                        <h4 style="color:white;">T2 MRI</h4>
+
+                                        <p style="color:#cbd5e1;">
+                                            Confidence: 89%
+                                        </p>
+                                    </div>
+
+                                    <!-- FLAIR MRI -->
+                                    <div style="
+                                        background:#111827;
+                                        padding:16px;
+                                        border-radius:20px;
+                                        width:220px;
+                                        box-shadow:0 4px 20px rgba(0,0,0,0.25);
+                                    ">
+                                        <img src="/static/sample3.jpg"
+                                            style="
+                                                width:100%;
+                                                border-radius:14px;
+                                                margin-bottom:12px;
+                                            ">
+
+                                        <h4 style="color:white;">FLAIR MRI</h4>
+
+                                        <p style="color:#cbd5e1;">
+                                            Confidence: 95%
+                                        </p>
+                                    </div>
+
                                 </div>
                             </div>
 
@@ -1428,6 +1518,140 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <!-- Comparative Tumor Dashboard -->
+                    <div class="comparison-dashboard mt-5">
+
+                        <h2 style="
+                            color:white;
+                            font-size:32px;
+                            font-weight:700;
+                            margin-bottom:24px;
+                            text-align:center;
+                        ">
+                            Comparative Tumor Analysis Dashboard
+                        </h2>
+
+                        <div style="
+                            overflow-x:auto;
+                            background:#111827;
+                            border-radius:20px;
+                            padding:20px;
+                            box-shadow:0 4px 20px rgba(0,0,0,0.25);
+                        ">
+
+                            <table style="
+                                width:100%;
+                                border-collapse:collapse;
+                                color:white;
+                            ">
+
+                                <thead>
+                                    <tr style="background:#1e293b;">
+                                        <th style="padding:16px;">MRI Type</th>
+                                        <th style="padding:16px;">Confidence</th>
+                                        <th style="padding:16px;">Tumor Severity</th>
+                                        <th style="padding:16px;">Tumor Area</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    <tr>
+                                        <td style="padding:16px;">T1 MRI</td>
+                                        <td style="padding:16px;">92%</td>
+                                        <td style="padding:16px; color:#facc15;">
+                                            Medium
+                                        </td>
+                                        <td style="padding:16px;">5.2%</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td style="padding:16px;">T2 MRI</td>
+                                        <td style="padding:16px;">89%</td>
+                                        <td style="padding:16px; color:#fb923c;">
+                                            High
+                                        </td>
+                                        <td style="padding:16px;">7.8%</td>
+                                    </tr>
+
+                                    <tr>
+                                        <td style="padding:16px;">FLAIR MRI</td>
+                                        <td style="padding:16px;">95%</td>
+                                        <td style="padding:16px; color:#ef4444;">
+                                            Critical
+                                        </td>
+                                        <td style="padding:16px;">9.1%</td>
+                                    </tr>
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+                    </div>
+
+                    <!-- MRI Fusion Preview -->
+                    <div class="fusion-preview mt-5">
+
+                        <h2 style="
+                            color:white;
+                            font-size:32px;
+                            font-weight:700;
+                            margin-bottom:24px;
+                            text-align:center;
+                        ">
+                            MRI Fusion Visualization
+                        </h2>
+
+                        <div style="
+                            display:flex;
+                            justify-content:center;
+                            align-items:center;
+                        ">
+
+                            <div style="
+                                position:relative;
+                                width:400px;
+                                height:400px;
+                            ">
+
+                                <!-- Base MRI -->
+                                <img src="/static/favicon.svg"
+                                    style="
+                                        position:absolute;
+                                        width:100%;
+                                        height:100%;
+                                        object-fit:cover;
+                                        opacity:0.6;
+                                        border-radius:20px;
+                                        box-shadow:0 4px 20px rgba(0,0,0,0.3);
+                                    ">
+
+                                <!-- Overlay MRI -->
+                                <img src="/static/logo.svg"
+                                    style="
+                                        position:absolute;
+                                        width:100%;
+                                        height:100%;
+                                        object-fit:cover;
+                                        opacity:0.4;
+                                        border-radius:20px;
+                                    ">
+
+                            </div>
+
+                        </div>
+
+                        <p style="
+                            color:#cbd5e1;
+                            text-align:center;
+                            margin-top:20px;
+                            font-size:16px;
+                        ">
+                            Comparative overlay visualization for enhanced tumor localization across MRI modalities.
+                        </p>
+
                     </div>
 
                     <!-- Results Area (Step 4) -->
