@@ -1012,6 +1012,14 @@ def predict():
         }), ve.http_status
 
     except Exception as e:
+        from werkzeug.exceptions import RequestEntityTooLarge
+        if isinstance(e, RequestEntityTooLarge):
+            max_mb = int(os.getenv('MAX_UPLOAD_MB', '16'))
+            return jsonify({
+                'error': True,
+                'code': 'FILE_TOO_LARGE',
+                'message': f'File exceeds the maximum allowed upload size of {max_mb} MB.',
+            }), 413
         logger.exception("Unexpected error in /api/predict")
         return jsonify({
             'error': True,
@@ -1107,6 +1115,9 @@ def internal_error(e):
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Handle all unhandled exceptions"""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
     logger.exception("Unhandled exception: %s", e)
     return jsonify({
         'error': True,
