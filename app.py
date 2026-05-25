@@ -71,6 +71,7 @@ from validators import (
     validate_file_size,
     validate_mime_type,
     validate_image_loadable,
+    validate_and_load_image,
     validate_tensor_shape,
 )
 
@@ -244,12 +245,6 @@ segmentation_model = None    # Primary segmentation model
 secondary_classifier = None  # Secondary classifier (classifier-resnet-weights.keras)
 secondary_segmentation = None  # Secondary segmentation model
 models_loaded = False
-
-
-def allowed_file(filename):
-    """Check if file extension is allowed"""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 
 def get_custom_objects():
@@ -911,87 +906,44 @@ def predict():
 
     filepath = None
     
-    # Check if file is present
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    
-    file = request.files['file']
-    
-    # Check if file is selected
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    # Check if file is allowed
-    if not allowed_file(file.filename):
-        return jsonify({
-            'error': 'Invalid file type. Allowed types: PNG, JPG, JPEG, TIF, TIFF'
-        }), 400
-    
     # Resolve TTA preference: ?tta=false / ?tta=0 / ?tta=no disables TTA for this request
     tta_param = request.args.get('tta', '').lower()
     _use_tta = False if tta_param in ('false', '0', 'no') else app.config['USE_TTA']
 
     try:
-        # ------------------------------------------------------------------
-        # Step 1: file present
-        # ------------------------------------------------------------------
+        # 1. Validate file presence
         file = request.files.get('file')
         validate_file_present(file)
 
-        # ------------------------------------------------------------------
-        # Step 2: extension allowlist
-        # ------------------------------------------------------------------
+        # 2. Validate file extension
         validate_file_extension(file.filename)
 
-        # ------------------------------------------------------------------
-        # Step 3: file size (stream-based, before disk write)
-        # ------------------------------------------------------------------
+        # 3. Validate file size
         validate_file_size(file.stream)
 
-        # ------------------------------------------------------------------
-        # Step 4: magic-byte MIME check
-        # ------------------------------------------------------------------
+        # 4. Validate MIME type
         validate_mime_type(file.stream)
 
-        # ------------------------------------------------------------------
-        # Step 5: PIL stream integrity check (Pass 1 — before disk write)
-        # ------------------------------------------------------------------
+        # 5. Validate image can be loaded (stream check)
         validate_image_loadable(file_stream=file.stream)
 
-        # ------------------------------------------------------------------
-        # Step 6: save to disk
-        # ------------------------------------------------------------------
+        # 6. Save file to disk
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # ------------------------------------------------------------------
-        # Step 7: OpenCV + PIL path check (Pass 2 — after disk write)
-        # ------------------------------------------------------------------
+        # 7. Validate image can be loaded (file check)
         validate_image_loadable(filepath=filepath)
 
-        # ------------------------------------------------------------------
-        # Step 8: read image for base64 preview
-        # ------------------------------------------------------------------
-        img_original = cv2.imread(filepath)
-        if img_original is None:
-            try:
-                img_pil = Image.open(filepath)
-                img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-            except Exception as exc:
-                logger.warning("predict: fallback PIL load failed for '%s' — %s", filepath, exc)
-                raise ValidationError(
-                    message="Image could not be decoded for preview. Please try a different file.",
-                    code="CORRUPTED_IMAGE",
-                    http_status=422,
-                ) from exc
+        # 8. Load image and generate base64 preview
+        img_original, img_base64 = validate_and_load_image(filepath)
 
-        _, img_buffer = cv2.imencode('.png', img_original)
-        img_base64 = base64.b64encode(img_buffer).decode('utf-8')
-        
-        # Make prediction — pass already-loaded image to avoid a second disk read
+        # 9. Preprocess and validate tensor shape
+        img_class = preprocess_image_classification(img_original.copy())
+        validate_tensor_shape(img_class, (1, 256, 256, 3))
+
+        # 10. Run inference
         prediction_result = predict_tumor(filepath, img_original=img_original, use_tta=_use_tta)
-        
         if prediction_result is None:
             logger.error("predict_tumor returned None for '%s'", filepath)
             return jsonify({

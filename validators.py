@@ -1,19 +1,16 @@
 """
 validators.py — MRI Upload Validation Module
-GSSoC 2026 Issue #14: Add MRI Upload Validation & Better Error Handling
 
-Provides ValidationError and a set of validator functions that guard the
-upload pipeline before any preprocessing or model inference runs.
-
-Validation order expected by app.py /api/predict:
+Provides ValidationError and validator functions for the upload pipeline.
+Validation order in /api/predict:
     1. validate_file_present()
     2. validate_file_extension()
     3. validate_file_size()
     4. validate_mime_type()
-    5. validate_image_loadable()          -- Pass 1: stream (before save)
+    5. validate_image_loadable() (stream)
     6. file.save(filepath)
-    7. validate_image_loadable(filepath)  -- Pass 2: path  (after save)
-    8. preprocess -> predict
+    7. validate_image_loadable() (filepath)
+    8. validate_and_load_image()
     9. validate_tensor_shape()
 """
 
@@ -27,9 +24,7 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Configuration constants
-# ---------------------------------------------------------------------------
 
 MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_MB", "16")) * 1024 * 1024
 
@@ -43,9 +38,7 @@ MAGIC_SIGNATURES: dict = {
     "tiff": [b"II*\x00", b"MM\x00*"],
 }
 
-# ---------------------------------------------------------------------------
 # Custom exception
-# ---------------------------------------------------------------------------
 
 
 class ValidationError(Exception):
@@ -65,21 +58,11 @@ class ValidationError(Exception):
         self.http_status = http_status
 
 
-# ---------------------------------------------------------------------------
 # Validator functions
-# ---------------------------------------------------------------------------
 
 
 def validate_file_present(file) -> None:
-    """
-    Ensure a file was actually included in the request.
-
-    Args:
-        file: werkzeug FileStorage object, or None if the key was absent.
-
-    Raises:
-        ValidationError: code="NO_FILE" (400) if file is None or has no name.
-    """
+    """Ensure a file was included in the request."""
     if file is None or not getattr(file, "filename", None):
         raise ValidationError(
             message="No file uploaded. Please attach an MRI image.",
@@ -128,21 +111,7 @@ def validate_file_extension(filename: str) -> str:
 
 
 def validate_file_size(file_stream) -> int:
-    """
-    Ensure the upload does not exceed MAX_UPLOAD_BYTES.
-
-    Seeks to the end of the stream to measure size, then rewinds to position 0
-    so subsequent reads are unaffected.
-
-    Args:
-        file_stream: seekable file-like object (werkzeug FileStorage.stream).
-
-    Returns:
-        File size in bytes on success.
-
-    Raises:
-        ValidationError: code="FILE_TOO_LARGE" (413) if size exceeds limit.
-    """
+    """Ensure upload does not exceed MAX_UPLOAD_BYTES."""
     file_stream.seek(0, 2)  # seek to end
     size = file_stream.tell()
     file_stream.seek(0)     # rewind
@@ -162,22 +131,7 @@ def validate_file_size(file_stream) -> int:
 
 
 def validate_mime_type(file_stream) -> str:
-    """
-    Verify the file's actual content via magic-byte inspection.
-
-    Reads the first 16 bytes of the stream and compares them against known
-    signatures for JPEG, PNG, and TIFF. The stream is rewound to position 0
-    after the check so it remains usable by the caller.
-
-    Args:
-        file_stream: seekable file-like object.
-
-    Returns:
-        Detected format string ("jpeg", "png", or "tiff") on success.
-
-    Raises:
-        ValidationError: code="INVALID_MIME" (415) if no signature matches.
-    """
+    """Verify file content via magic-byte inspection."""
     file_stream.seek(0)
     header = file_stream.read(16)
     file_stream.seek(0)
@@ -199,34 +153,23 @@ def validate_mime_type(file_stream) -> str:
 
 
 def validate_image_loadable(file_stream=None, filepath: str = None) -> bool:
-    """
-    Verify that the image can be decoded by both PIL and OpenCV.
-
-    Two optional passes:
-        Pass 1 (stream)  — call PIL.Image.open().verify() on an in-memory copy
-                           of the stream before the file is written to disk.
-        Pass 2 (filepath) — call cv2.imread() on the saved path after the file
-                            has been persisted.
-
-    At least one of file_stream or filepath must be provided.
-
+    """Verify image can be decoded by PIL and OpenCV.
+    
     Args:
-        file_stream: seekable file-like object (Pass 1). May be None to skip.
-        filepath:    absolute path to the saved file (Pass 2). May be None to skip.
-
+        file_stream: seekable file-like object (Pass 1)
+        filepath: path to saved file (Pass 2)
+        
     Returns:
-        True when all requested checks pass.
-
+        True when all checks pass.
+        
     Raises:
-        ValidationError: code="CORRUPTED_IMAGE" (422) on any decode failure.
+        ValidationError: code="CORRUPTED_IMAGE" (422) on decode failure.
         ValueError: if neither argument is provided.
     """
     if file_stream is None and filepath is None:
         raise ValueError("validate_image_loadable requires file_stream or filepath.")
 
-    # ------------------------------------------------------------------
-    # Pass 1 — PIL stream verification (before disk write)
-    # ------------------------------------------------------------------
+    # Pass 1 — PIL stream verification
     if file_stream is not None:
         try:
             file_stream.seek(0)
@@ -234,7 +177,7 @@ def validate_image_loadable(file_stream=None, filepath: str = None) -> bool:
             file_stream.seek(0)
 
             img = Image.open(buf)
-            img.verify()  # raises if the file is truncated or corrupt
+            img.verify()  # raises if truncated or corrupt
         except Exception as exc:
             logger.warning("validate_image_loadable (stream): PIL verify failed — %s", exc)
             raise ValidationError(
@@ -246,13 +189,11 @@ def validate_image_loadable(file_stream=None, filepath: str = None) -> bool:
                 http_status=422,
             ) from exc
 
-    # ------------------------------------------------------------------
-    # Pass 2 — OpenCV path verification (after disk write)
-    # ------------------------------------------------------------------
+    # Pass 2 — OpenCV path verification
     if filepath is not None:
         img_cv = cv2.imread(filepath)
         if img_cv is None:
-            # Attempt PIL fallback before declaring failure
+            # Attempt PIL fallback
             try:
                 with Image.open(filepath) as img_pil:
                     img_pil.load()
@@ -273,20 +214,43 @@ def validate_image_loadable(file_stream=None, filepath: str = None) -> bool:
     return True
 
 
-def validate_tensor_shape(tensor: np.ndarray, expected: tuple) -> bool:
-    """
-    Assert that a preprocessed tensor has the expected shape before inference.
-
+def validate_and_load_image(filepath: str) -> tuple:
+    """Load image and return numpy array and base64 string.
+    
     Args:
-        tensor:   numpy array produced by a preprocessing function.
-        expected: tuple of expected dimensions, e.g. (1, 256, 256, 3).
-
+        filepath: Path to saved image file.
+        
     Returns:
-        True if the shape matches.
-
+        Tuple of (img_original, img_base64)
+        
     Raises:
-        ValidationError: code="INVALID_TENSOR" (422) if shapes differ.
+        ValidationError: code="CORRUPTED_IMAGE" (422) if cannot load.
     """
+    import cv2
+    import base64
+    
+    img_original = cv2.imread(filepath)
+    if img_original is None:
+        try:
+            from PIL import Image
+            img_pil = Image.open(filepath)
+            img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+        except Exception as exc:
+            logger.warning("validate_and_load_image: both cv2 and PIL failed for '%s' — %s", filepath, exc)
+            raise ValidationError(
+                message="Image could not be decoded for preview. Please try a different file.",
+                code="CORRUPTED_IMAGE",
+                http_status=422,
+            ) from exc
+    
+    _, img_buffer = cv2.imencode('.png', img_original)
+    img_base64 = base64.b64encode(img_buffer).decode('utf-8')
+    
+    return img_original, img_base64
+
+
+def validate_tensor_shape(tensor: np.ndarray, expected: tuple) -> bool:
+    """Assert preprocessed tensor has expected shape before inference."""
     if tensor is None:
         raise ValidationError(
             message="Image preprocessing produced no output. The image may be invalid.",
