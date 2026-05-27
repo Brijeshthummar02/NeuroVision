@@ -10,6 +10,11 @@
     --galaxy: #081F5C;         /* Navy Blue */
     --milky-way: #FFF9F0;      /* Cream */
     --sky: #D0E3FF;            /* Sky Blue */
+
+    /* Default (Light Theme) */
+    --bg-color: #ffffff;
+    --text-color: #000000;
+    
     
     /* Functional Colors */
     --success: #10b981;

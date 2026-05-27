@@ -1907,9 +1907,10 @@
             </div>
 
         </div>
-    </section>
+</section>
 
     <!-- Deep Learning Architecture Section -->
+
     <!-- ============================================== -->
     <!-- ADVANCED CNN ARCHITECTURE PIPELINE - REDESIGNED -->
     <!-- ============================================== -->
@@ -3758,5 +3759,40 @@
     <!-- Custom JavaScript with cache busting -->
     <script src="{{ url_for('static', filename='js/script.js') }}?v={{ range(1000, 9999) | random }}"></script>
     
+<script>
+const toggleBtn = document.getElementById("theme-toggle");
+const themeIcon = document.getElementById("theme-icon");
+
+function setTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+
+    localStorage.setItem("theme", theme);
+
+    if (theme === "dark") {
+        themeIcon.classList.remove("fa-moon");
+        themeIcon.classList.add("fa-sun");
+    } else {
+        themeIcon.classList.remove("fa-sun");
+        themeIcon.classList.add("fa-moon");
+    }
+}
+
+toggleBtn.addEventListener("click", () => {
+    const currentTheme =
+        document.documentElement.getAttribute("data-theme");
+
+    const newTheme =
+        currentTheme === "dark" ? "light" : "dark";
+
+    setTheme(newTheme);
+});
+
+window.addEventListener("load", () => {
+    const savedTheme =
+        localStorage.getItem("theme") || "light";
+
+    setTheme(savedTheme);
+});
+</script>
 </body>
 </html>
