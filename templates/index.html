@@ -20,41 +20,6 @@
     <!-- Custom CSS with cache busting -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ range(1000, 9999) | random }}">
 </head>
-<script>
-const toggleBtn = document.getElementById("theme-toggle");
-const themeIcon = document.getElementById("theme-icon");
-
-function setTheme(theme) {
-    document.documentElement.setAttribute("data-theme", theme);
-
-    localStorage.setItem("theme", theme);
-
-    if (theme === "dark") {
-        themeIcon.classList.remove("fa-moon");
-        themeIcon.classList.add("fa-sun");
-    } else {
-        themeIcon.classList.remove("fa-sun");
-        themeIcon.classList.add("fa-moon");
-    }
-}
-
-toggleBtn.addEventListener("click", () => {
-    const currentTheme =
-        document.documentElement.getAttribute("data-theme");
-
-    const newTheme =
-        currentTheme === "dark" ? "light" : "dark";
-
-    setTheme(newTheme);
-});
-
-window.addEventListener("load", () => {
-    const savedTheme =
-        localStorage.getItem("theme") || "light";
-
-    setTheme(savedTheme);
-});
-</script>
 <body>
     
     <!-- Navigation -->

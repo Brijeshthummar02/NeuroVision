@@ -16,10 +16,7 @@
     --warning: #f59e0b;
     --error: #ef4444;
     --info: #3b82f6;
-    :root {
-    --bg-color: #ffffff;
-    --text-color: #000000;
-}
+    
 
 [data-theme="dark"] {
     --bg-color: #121212;
