@@ -55,6 +55,9 @@ def test_health_check():
     except Exception as e:
         print(f"❌ Error: {e}")
         print("Make sure the Flask server is running on port 5000")
+        print(f"❌ Connection Refused: Could not reach the server at {BASE_URL}")
+        print("👉 Step 1: Open a NEW terminal.")
+        print("👉 Step 2: Run 'python app.py' and wait for 'Starting Flask server...'")
         return False
 
 def test_tumor_detection(image_path, image_number, total_images):
