@@ -11,6 +11,36 @@ from tensorflow.keras import backend as K
   
 #creating a custom datagenerator:
 
+
+class MonteCarloDropout(tf.keras.layers.Dropout):
+  """Dropout layer that stays stochastic during inference for uncertainty sampling."""
+
+  def call(self, inputs, training = None):
+    return super().call(inputs, training = True)
+
+
+def model_supports_mc_dropout(model):
+  """Return True when the model contains dropout layers that can be sampled at inference time."""
+  return any(isinstance(layer, tf.keras.layers.Dropout) for layer in model.layers)
+
+
+def build_mc_dropout_model(model):
+  """
+  Clone a model so only dropout stays active during inference.
+  Batch normalization and the rest of the network remain in inference mode.
+  """
+  if not model_supports_mc_dropout(model):
+    return None
+
+  def clone_with_mc_dropout(layer):
+    if isinstance(layer, tf.keras.layers.Dropout):
+      return MonteCarloDropout.from_config(layer.get_config())
+    return layer.__class__.from_config(layer.get_config())
+
+  mc_model = tf.keras.models.clone_model(model, clone_function = clone_with_mc_dropout)
+  mc_model.set_weights(model.get_weights())
+  return mc_model
+
 class DataGenerator(tf.keras.utils.Sequence):
   def __init__(self, ids , mask, image_dir = './', batch_size = 16, img_h = 256, img_w = 256, shuffle = True):
 
@@ -254,30 +284,30 @@ def precision_metric(y_true, y_pred):
 
 def predict_with_tta_classification(model, img):
     # Original
-    pred = model.predict(img)
+    pred = model.predict(img, verbose = 0)
     
     # Horizontal flip
     img_flip = np.flip(img, axis=2)
-    pred_flip = model.predict(img_flip)
+    pred_flip = model.predict(img_flip, verbose = 0)
     
     # Vertical flip
     img_vflip = np.flip(img, axis=1)
-    pred_vflip = model.predict(img_vflip)
+    pred_vflip = model.predict(img_vflip, verbose = 0)
     
     return (pred + pred_flip + pred_vflip) / 3
 
 def predict_with_tta_segmentation(model, img):
     # Original
-    pred = model.predict(img)
+    pred = model.predict(img, verbose = 0)
     
     # Horizontal flip
     img_flip = np.flip(img, axis=2)
-    pred_flip = model.predict(img_flip)
+    pred_flip = model.predict(img_flip, verbose = 0)
     pred_flip = np.flip(pred_flip, axis=2)
     
     # Vertical flip
     img_vflip = np.flip(img, axis=1)
-    pred_vflip = model.predict(img_vflip)
+    pred_vflip = model.predict(img_vflip, verbose = 0)
     pred_vflip = np.flip(pred_vflip, axis=1)
     
     return (pred + pred_flip + pred_vflip) / 3
