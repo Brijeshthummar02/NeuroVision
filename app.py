@@ -14,11 +14,18 @@ Features:
 
 from dotenv import load_dotenv
 import os
+import sys
 
 load_dotenv()
 
-REQUIRED_ENV_VARS = [
-    'FLASK_SECRET_KEY',
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+os.environ.setdefault('MPLCONFIGDIR', os.path.join(os.getcwd(), '.matplotlib-cache'))
+os.makedirs(os.environ['MPLCONFIGDIR'], exist_ok=True)
+
+REQUIRED_ENV_VARS = ['FLASK_SECRET_KEY']
+CLOUDINARY_ENV_VARS = [
     'CLOUDINARY_CLOUD_NAME',
     'CLOUDINARY_API_KEY',
     'CLOUDINARY_API_SECRET',
@@ -26,20 +33,32 @@ REQUIRED_ENV_VARS = [
 
 
 def validate_required_env():
-    """Fail fast if required environment variables are missing."""
+    """Warn about missing local configuration without blocking app startup."""
     missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
     if missing:
-        raise EnvironmentError(
-            'Missing required environment variables: '
+        print(
+            'Warning: missing required environment variables: '
             + ', '.join(missing)
-            + '. Copy .env.example to .env and set your values.'
+            + '. Using development fallbacks where possible.'
+        )
+
+    missing_cloudinary = [var for var in CLOUDINARY_ENV_VARS if not os.getenv(var)]
+    if missing_cloudinary:
+        print(
+            'Warning: Cloudinary is not fully configured. Scan history image uploads '
+            'will fall back to inline/base64 images.'
         )
 
 
 validate_required_env()
 
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ImportError:
+    def CORS(app, **kwargs):
+        print("Warning: flask-cors is not installed. CORS support is disabled.")
+        return app
 import tensorflow as tf
 import numpy as np
 import cv2
@@ -52,11 +71,22 @@ import hashlib
 from datetime import datetime
 from functools import wraps
 from werkzeug.utils import secure_filename
-from pymongo import MongoClient
-from bson import ObjectId
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+try:
+    from pymongo import MongoClient
+except ImportError:
+    MongoClient = None
+    print("Warning: pymongo is not installed. MongoDB storage is disabled.")
+try:
+    from bson import ObjectId
+except ImportError:
+    ObjectId = None
+try:
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+except ImportError:
+    cloudinary = None
+    print("Warning: cloudinary is not installed. Cloud image uploads are disabled.")
 from utilities import (
     focal_tversky, tversky_loss, tversky, 
     dice_coefficient, dice_loss, bce_dice_loss,
@@ -68,7 +98,7 @@ from utilities import (
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
-app.secret_key = os.getenv('FLASK_SECRET_KEY')
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-only-secret-key')
 
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -91,12 +121,14 @@ MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'neuroscan_db')
 mongodb_available = False
 
 # Cloudinary Configuration
-cloudinary.config(
-    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.getenv('CLOUDINARY_API_KEY'),
-    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
-    secure=True,
-)
+cloudinary_configured = bool(cloudinary and all(os.getenv(var) for var in CLOUDINARY_ENV_VARS))
+if cloudinary_configured:
+    cloudinary.config(
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+        api_key=os.getenv('CLOUDINARY_API_KEY'),
+        api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+        secure=True,
+    )
 
 # Create required directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -105,6 +137,9 @@ os.makedirs(app.config['SCAN_HISTORY_FOLDER'], exist_ok=True)
 # ==================== Cloudinary Helper Functions ====================
 def upload_image_to_cloudinary(image_data, folder="neuroscan", public_id=None):
     """Upload base64 image to Cloudinary and return the URL"""
+    if not cloudinary_configured:
+        return None
+
     try:
         # Handle data URL format
         if ',' in image_data:
@@ -126,6 +161,9 @@ def upload_image_to_cloudinary(image_data, folder="neuroscan", public_id=None):
 
 def delete_image_from_cloudinary(public_id):
     """Delete image from Cloudinary"""
+    if not cloudinary_configured:
+        return False
+
     try:
         cloudinary.uploader.destroy(public_id)
         return True
@@ -175,6 +213,11 @@ def init_mongodb():
     if not MONGO_URI:
         mongodb_available = False
         print("⚠ MONGO_URI not set — using JSON file storage fallback")
+        return False
+
+    if MongoClient is None:
+        mongodb_available = False
+        print("MongoDB fallback: pymongo is not installed")
         return False
 
     try:
@@ -1729,3 +1772,8 @@ if __name__ == '__main__':
         print("  - classifier-resnet-model.json")
         print("  - classifier-resnet-weights.keras")
         print("  - ResUNet-model.json")
+        print("\nStarting Flask server with predictions disabled.")
+        print("Access the application at: http://localhost:5000")
+        print("API Health Check: http://localhost:5000/api/health")
+        print("=" * 70)
+        app.run(debug=True, host='0.0.0.0', port=5000)

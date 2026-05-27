@@ -1,11 +1,11 @@
 
-import pandas as pd
 import numpy as np
-import seaborn as sns
 import cv2
 import tensorflow as tf
-import os 
-from skimage import io
+try:
+  from skimage import io
+except ImportError:
+  io = None
 from PIL import Image
 from tensorflow.keras import backend as K
   
@@ -89,6 +89,8 @@ class DataGenerator(tf.keras.utils.Sequence):
 
   def __data_generation(self, list_ids, list_mask):
     'generate the data corresponding the indexes in a given batch of images'
+    if io is None:
+      raise ImportError('scikit-image is required for DataGenerator image loading.')
 
     # create empty arrays of shape (batch_size,height,width,depth) 
     #Depth is 3 for input and depth is taken as 1 for output becasue mask consist only of 1 channel.
@@ -139,6 +141,9 @@ class DataGenerator(tf.keras.utils.Sequence):
 
 def prediction(test, model, model_seg):
   '''
+
+  if io is None:
+    raise ImportError('scikit-image is required for batch prediction image loading.')
   Predcition function which takes dataframe containing ImageID as Input and perform 2 type of prediction on the image
   Initially, image is passed through the classification network which predicts whether the image has defect or not, if the model
   is 99% sure that the image has no defect, then the image is labeled as no-defect, if the model is not sure, it passes the image to the
