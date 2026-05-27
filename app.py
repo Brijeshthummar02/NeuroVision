@@ -27,6 +27,11 @@ REQUIRED_ENV_VARS = [
 
 def validate_required_env():
     """Fail fast if required environment variables are missing."""
+    if not os.path.exists('.env'):
+        print("\n" + "!" * 60)
+        print("⚠ CRITICAL: .env file not found in root directory.")
+        print("Please copy .env.example to .env and provide your API keys.")
+        print("!" * 60 + "\n")
     missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
     if missing:
         raise EnvironmentError(
