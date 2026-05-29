@@ -39,6 +39,11 @@
                     <li><a href="#architecture" class="nav-link">Architecture</a></li>
                     <li><a href="#stats" class="nav-link">Stats</a></li>
                 </ul>
+                <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle menu">
+    <span></span>
+    <span></span>
+    <span></span>
+</button>
                 <div class="nav-actions">
                     <button id="historyButton" type="button" onclick="showHistoryPanel()" style="display: none;">
                         <i class="fas fa-history"></i>
@@ -3756,6 +3761,22 @@
 
     <!-- Custom JavaScript with cache busting -->
     <script src="{{ url_for('static', filename='js/script.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    
+    <script>
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const navLinks = document.querySelector('.nav-links');
+
+    hamburgerBtn.addEventListener('click', () => {
+        hamburgerBtn.classList.toggle('open');
+        navLinks.classList.toggle('open');
+    });
+
+    // Close menu when a link is clicked
+    navLinks.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', () => {
+            hamburgerBtn.classList.remove('open');
+            navLinks.classList.remove('open');
+        });
+    });
+</script>
 </body>
 </html>
