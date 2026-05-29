@@ -5,8 +5,17 @@ __pycache__/
 .idea/
 .vscode/
 
+# Model weight files (large binaries, not for version control)
 classifier-resnet-weights.hdf5
 ResUNet-weights.hdf5
 weights_seg.hdf5
 weights.hdf5
 TCGA*/
+
+# Runtime data — may contain real user data, never commit
+neuroscan_data.json
+*.db
+
+# User-uploaded scan images
+uploads/
+scan_history/

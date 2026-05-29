@@ -10,6 +10,24 @@ A **state-of-the-art** deep learning pipeline for detecting and localizing brain
 ![Dice](https://img.shields.io/badge/Dice_Score-0.94+-blue)
 
 ---
+---
+
+##  Table of Contents
+
+- [What's New in v2.0](#-whats-new-in-v20)
+- [Key Features](#-key-features)
+- [Model Performance](#-model-performance)
+- [Architecture](#️-architecture-v20)
+- [Dataset](#-dataset)
+- [Quick Start](#-quick-start)
+- [Project Structure](#-project-structure)
+- [Training Configuration](#-training-configuration)
+- [API Endpoints](#-api-endpoints)
+- [Tech Stack](#️-tech-stack)
+- [References](#-references)
+- [License](#-license)
+
+---
 
 ## 🆕 What's New in v2.0
 
@@ -22,6 +40,17 @@ A **state-of-the-art** deep learning pipeline for detecting and localizing brain
 | **Inference** | Standard | 2x faster with TTA & XLA |
 | **Classification Accuracy** | 97.92% | **99%+** |
 | **Dice Score** | 0.91 | **0.94+** |
+
+---
+---
+## ✨ Highlights
+
+- Two-stage MRI tumor detection pipeline
+- EfficientNetB4 classification backbone
+- Attention ResUNet with CBAM + ASPP
+- Test Time Augmentation (TTA)
+- Mixed precision inference support
+- Flask-based deployment interface
 
 ---
 
@@ -37,7 +66,7 @@ A **state-of-the-art** deep learning pipeline for detecting and localizing brain
 - **Mixed Precision Training**: 2x faster training with FP16
 - **XLA JIT Compilation**: Optimized inference speed
 
----
+
 
 ## 📊 Model Performance
 
@@ -78,7 +107,7 @@ A **state-of-the-art** deep learning pipeline for detecting and localizing brain
 
 ---
 
-## 🏗️ Architecture v2.0
+## 🏗️ System Architecture
 
 ```
 MRI Input (256×256×3)
