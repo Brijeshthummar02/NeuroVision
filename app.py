@@ -84,7 +84,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+# Restrict CORS to explicit origins — set CORS_ORIGINS in .env (comma-separated)
+_cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000').split(',')
+CORS(app, supports_credentials=True, origins=[o.strip() for o in _cors_origins])
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 # Configuration
@@ -1566,7 +1568,10 @@ if __name__ == '__main__':
         print("🗄️  Database: MongoDB")
         print("☁️  Image Storage: Cloudinary")
         print("=" * 70)
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        _debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+        _host = os.getenv('FLASK_HOST', '127.0.0.1')  # Bind to localhost only by default
+        _port = int(os.getenv('FLASK_PORT', '5000'))
+        app.run(debug=_debug, host=_host, port=_port)
     else:
         print("\n❌ Failed to load models. Please check that model files exist.")
         print("Required files:")

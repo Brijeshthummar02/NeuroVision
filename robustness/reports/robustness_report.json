@@ -1,0 +1,37 @@
+[
+    {
+        "corruption": "gaussian_noise",
+        "clean_confidence": 0.7862,
+        "corrupted_confidence": 0.7264,
+        "confidence_drop": 0.0598,
+        "robustness_score": 0.9239
+    },
+    {
+        "corruption": "blur",
+        "clean_confidence": 0.7862,
+        "corrupted_confidence": 0.773,
+        "confidence_drop": 0.0132,
+        "robustness_score": 0.9832
+    },
+    {
+        "corruption": "brightness",
+        "clean_confidence": 0.7862,
+        "corrupted_confidence": 0.7849,
+        "confidence_drop": 0.0013,
+        "robustness_score": 0.9983
+    },
+    {
+        "corruption": "low_resolution",
+        "clean_confidence": 0.7862,
+        "corrupted_confidence": 0.7745,
+        "confidence_drop": 0.0117,
+        "robustness_score": 0.9851
+    },
+    {
+        "corruption": "compression",
+        "clean_confidence": 0.7862,
+        "corrupted_confidence": 0.7718,
+        "confidence_drop": 0.0144,
+        "robustness_score": 0.9817
+    }
+]
