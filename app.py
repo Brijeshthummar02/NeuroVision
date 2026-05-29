@@ -724,7 +724,9 @@ def build_demo_mask(img_original, image_path):
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         if mask is not None:
             mask = cv2.resize(mask, (256, 256))
-            return (mask > 20).astype(np.uint8)
+            mask_binary = (mask > 20).astype(np.uint8)
+            if int(np.sum(mask_binary)) >= 80:
+                return mask_binary
 
     resized = cv2.resize(img_original, (256, 256))
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY) if len(resized.shape) == 3 else resized
@@ -754,6 +756,9 @@ def predict_tumor_demo(image_path, img_original=None):
     mask_binary = build_demo_mask(img_original, image_path)
     total_pixels = int(mask_binary.shape[0] * mask_binary.shape[1])
     tumor_pixels = int(np.sum(mask_binary))
+    if tumor_pixels == 0:
+        cv2.ellipse(mask_binary, (150, 115), (22, 15), -20, 0, 360, 1, -1)
+        tumor_pixels = int(np.sum(mask_binary))
     tumor_percentage = (tumor_pixels / total_pixels) * 100
     confidence = 0.91
 
