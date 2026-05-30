@@ -378,29 +378,30 @@ def load_models():
         print(f"   - Segmentation models loaded: {len(segmentation_models)}")
         print(f"   - TTA enabled: {app.config['USE_TTA']}")
         print(f"   - Ensemble enabled: {app.config['USE_ENSEMBLE']}")
-        return True
         
-    # ============================================================
-    # LOAD GLAUCOMA DETECTION MODEL (separate from brain tumor models)
-    # Uses a dedicated model file — NOT shared with cataract/other conditions
-    # ============================================================
-    glaucoma_model_path = os.getenv('GLAUCOMA_MODEL_PATH', 'glaucoma_model.h5')
-    if os.path.exists(glaucoma_model_path):
-        print("Loading glaucoma detection model...")
-        try:
-            global glaucoma_model, glaucoma_model_loaded
-            glaucoma_model = tf.keras.models.load_model(
-                glaucoma_model_path,
-                custom_objects=custom_objects
-            )
-            glaucoma_model_loaded = True
-            print("✓ Glaucoma detection model loaded successfully")
-        except Exception as e:
-            print(f"? Could not load glaucoma model: {str(e)}")
-            glaucoma_model = None
-            glaucoma_model_loaded = False
-    else:
-        print(f"⚠ Glaucoma model not found at '{glaucoma_model_path}' — glaucoma endpoint will be unavailable")
+        # ============================================================
+        # LOAD GLAUCOMA DETECTION MODEL (separate from brain tumor models)
+        # Uses a dedicated model file — NOT shared with cataract/other conditions
+        # ============================================================
+        glaucoma_model_path = os.getenv('GLAUCOMA_MODEL_PATH', 'glaucoma_model.h5')
+        if os.path.exists(glaucoma_model_path):
+            print("Loading glaucoma detection model...")
+            try:
+                global glaucoma_model, glaucoma_model_loaded
+                glaucoma_model = tf.keras.models.load_model(
+                    glaucoma_model_path,
+                    custom_objects=custom_objects
+                )
+                glaucoma_model_loaded = True
+                print("✓ Glaucoma detection model loaded successfully")
+            except Exception as e:
+                print(f"? Could not load glaucoma model: {str(e)}")
+                glaucoma_model = None
+                glaucoma_model_loaded = False
+        else:
+            print(f"⚠ Glaucoma model not found at '{glaucoma_model_path}' — glaucoma endpoint will be unavailable")
+        
+        return True
 
     except Exception as e:
         print(f"Error loading models: {str(e)}")
