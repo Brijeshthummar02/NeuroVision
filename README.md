@@ -1,5 +1,11 @@
 # 🧠 TumorVision v2.0: Enhanced AI Brain Tumor Detection & Localization
 
+##  Demo Video
+
+
+https://github.com/user-attachments/assets/a84f0117-efd7-4e01-a3e4-4da48b419d1a
+
+
 A **state-of-the-art** deep learning pipeline for detecting and localizing brain tumors in MRI scans using **EfficientNetB4/ResNet-50** for classification and **Attention ResUNet v2.0** with **CBAM + ASPP** for precise segmentation.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python)
