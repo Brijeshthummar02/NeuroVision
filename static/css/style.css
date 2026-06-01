@@ -11952,16 +11952,21 @@ section {
 .scan-main-card {
     background: white;
     border-radius: 1.5rem;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 10px 50px rgba(0, 0, 0, 0.08);
     overflow: hidden;
     border: 1px solid rgba(51, 78, 172, 0.1);
+    min-height: clamp(720px, 78vh, 920px);
+    width: 100%;
 }
 
 /* Upload State */
 .upload-state {
     display: grid;
-    grid-template-columns: 1fr 1.2fr;
-    min-height: 600px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    min-height: clamp(600px, 70vh, 760px);
+    align-items: stretch;
 }
 
 /* Doctor Intro Panel */
@@ -11971,6 +11976,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 2rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .doctor-profile-card {
@@ -12165,6 +12172,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .upload-header {
@@ -12429,14 +12438,21 @@ section {
     transition: all 0.3s ease;
 }
 
-.remove-btn-v2:hover {
+.remove-btn-v2:hover:not(:disabled) {
     background: #dc2626;
     color: white;
+}
+
+.remove-btn-v2:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 
 .preview-image-container {
     position: relative;
     padding: 1rem;
+    max-height: 420px;
+    overflow: hidden;
 }
 
 .preview-image-container img {
@@ -12444,6 +12460,8 @@ section {
     height: auto;
     border-radius: 0.5rem;
     display: block;
+    max-height: 380px;
+    object-fit: contain;
 }
 
 .preview-overlay {
@@ -12493,6 +12511,12 @@ section {
     cursor: not-allowed;
 }
 
+.analyze-btn-v2:focus-visible,
+.remove-btn-v2:focus-visible {
+    outline: 3px solid rgba(51, 78, 172, 0.35);
+    outline-offset: 3px;
+}
+
 .analyze-btn-v2 .btn-content {
     display: flex;
     align-items: center;
@@ -12540,8 +12564,9 @@ section {
 
 .scanning-room {
     display: grid;
-    grid-template-columns: 1.3fr 1fr;
-    min-height: 600px;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    min-height: clamp(600px, 70vh, 760px);
+    align-items: stretch;
 }
 
 /* MRI Machine Panel */
@@ -12551,6 +12576,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .machine-header {
@@ -12745,6 +12772,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .dashboard-header h3 {
@@ -13338,20 +13367,24 @@ section {
 /* ============================================= */
 
 @media (max-width: 1024px) {
+    .scan-main-card {
+        min-height: clamp(720px, 84vh, 980px);
+    }
+
     .upload-state {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
     }
     
     .doctor-intro-panel {
-        order: 2;
+        order: 0;
     }
     
     .upload-panel {
-        order: 1;
+        order: 0;
     }
     
     .scanning-room {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
     }
     
     .mri-machine-panel {

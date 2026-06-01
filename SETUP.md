@@ -129,12 +129,27 @@ source venv/bin/activate
 ```bash
 # Install web application dependencies
 pip install -r requirements-web.txt
-
-# If you also want notebook dependencies:
-pip install -r requirements.txt
 ```
 
-### Step 4: Verify Model Files
+### Step 4: Configure Environment Variables
+
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+On Windows (Command Prompt): `copy .env.example .env`
+
+Edit `.env` and set at least:
+
+- `FLASK_SECRET_KEY` — a long random string for Flask sessions
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — from [Cloudinary](https://cloudinary.com/)
+- `MONGO_URI` (optional) — MongoDB Atlas connection string; omit to use local JSON storage
+
+Never commit your `.env` file.
+
+### Step 5: Verify Model Files
 
 Ensure these files exist in the project root:
 
@@ -193,7 +208,7 @@ Loading segmentation model...
 ============================================================
 ```
 
-### Step 6: Open in Browser
+### Step 7: Open in Browser
 
 Open your web browser and navigate to:
 

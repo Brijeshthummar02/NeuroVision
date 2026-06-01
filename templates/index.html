@@ -55,6 +55,7 @@
             </div>
         </div>
     </nav>
+    <main id="main-content">
 
     <!-- Hero Section -->
     <section id="home" class="hero-section">
@@ -1239,7 +1240,7 @@
                             <div class="image-preview-v2" id="imagePreview" style="display: none;">
                                 <div class="preview-header">
                                     <span class="preview-label"><i class="fas fa-file-image"></i> Uploaded Scan</span>
-                                    <button class="remove-btn-v2" id="removeBtn">
+                                    <button class="remove-btn-v2" id="removeBtn" type="button" aria-label="Remove image">
                                         <i class="fas fa-trash-alt"></i> Remove
                                     </button>
                                 </div>
@@ -1254,7 +1255,7 @@
                                 </div>
                             </div>
 
-                            <button class="analyze-btn-v2" id="analyzeBtn" disabled>
+                            <button class="analyze-btn-v2" id="analyzeBtn" type="button" disabled aria-busy="false">
                                 <span class="btn-content">
                                     <i class="fas fa-microscope"></i>
                                     <span>Begin Analysis</span>
@@ -1270,7 +1271,7 @@
                     </div>
 
                     <!-- Loading State (Step 3) - Doctor Review -->
-                    <div class="loading-state" id="loadingCard" style="display: none;">
+                    <div class="loading-state" id="loadingCard" style="display: none;" aria-live="polite" aria-busy="true">
                         <!-- Scanning Room Environment -->
                         <div class="scanning-room">
                             <!-- Left Panel - MRI Machine Visualization -->
@@ -1346,6 +1347,7 @@
                                     <div class="doctor-thought-bubble-v2" id="thoughtBubble">
                                         <p id="doctorThought">Let me carefully examine this MRI scan...</p>
                                         <div class="typing-indicator">
+                                            
                                             <span></span><span></span><span></span>
                                         </div>
                                     </div>
@@ -3719,6 +3721,7 @@
     </section>
 
     <!-- Footer -->
+    </main>
     <footer class="footer">
         <div class="container">
             <div class="footer-content">

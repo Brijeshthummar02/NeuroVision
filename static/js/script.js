@@ -6,6 +6,22 @@ const API_BASE_URL = 'http://localhost:5000';
 // ==================== State Management ====================
 let uploadedFile = null;
 let currentResults = null;
+let isAnalyzing = false;
+let loadingProgressInterval = null;
+const analyzeButtonIdleHTML = `
+    <span class="btn-content">
+        <i class="fas fa-microscope"></i>
+        <span>Begin Analysis</span>
+    </span>
+    <span class="btn-shine"></span>
+`;
+const analyzeButtonLoadingHTML = `
+    <span class="btn-content">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Analyzing...</span>
+    </span>
+    <span class="btn-shine"></span>
+`;
 
 // ==================== DOM Elements ====================
 const elements = {
@@ -196,6 +212,11 @@ function handleDrop(e) {
 }
 
 function validateAndPreviewFile(file) {
+    if (isAnalyzing) {
+        showNotification('Analysis is already in progress. Please wait for it to finish.', 'info');
+        return;
+    }
+
     // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff'];
     const validExtensions = ['.jpg', '.jpeg', '.png', '.tif', '.tiff'];
@@ -227,7 +248,7 @@ function previewImage(file) {
         elements.previewImage.src = e.target.result;
         elements.uploadArea.style.display = 'none';
         elements.imagePreview.style.display = 'block';
-        elements.analyzeBtn.disabled = false;
+        setAnalyzeControlsLoading(false);
         
         // Animate preview
         elements.imagePreview.classList.add('fade-in');
@@ -241,6 +262,11 @@ function previewImage(file) {
 
 function handleRemoveImage(e) {
     e.stopPropagation();
+
+    if (isAnalyzing) {
+        showNotification('Please wait until the current analysis is complete.', 'info');
+        return;
+    }
     
     uploadedFile = null;
     elements.fileInput.value = '';
@@ -255,10 +281,18 @@ function handleRemoveImage(e) {
 
 // ==================== Analysis ====================
 async function handleAnalyze() {
+    if (isAnalyzing) {
+        showNotification('Analysis is already in progress. Please wait for the result.', 'info');
+        return;
+    }
+
     if (!uploadedFile) {
         showNotification('Please upload an image first', 'error');
         return;
     }
+
+    isAnalyzing = true;
+    setAnalyzeControlsLoading(true);
     
     // Show loading state
     showLoadingState();
@@ -275,8 +309,14 @@ async function handleAnalyze() {
         });
         
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Analysis failed');
+            let errorMessage = 'Analysis failed';
+            try {
+                const error = await response.json();
+                errorMessage = error.error || errorMessage;
+            } catch {
+                errorMessage = response.statusText || errorMessage;
+            }
+            throw new Error(errorMessage);
         }
         
         const results = await response.json();
@@ -289,8 +329,24 @@ async function handleAnalyze() {
         
     } catch (error) {
         console.error('Analysis error:', error);
+        isAnalyzing = false;
         hideLoadingState();
         showNotification(error.message || 'Failed to analyze image. Please try again.', 'error');
+    }
+}
+
+function setAnalyzeControlsLoading(isLoading) {
+    if (elements.analyzeBtn) {
+        elements.analyzeBtn.disabled = isLoading || !uploadedFile;
+        elements.analyzeBtn.setAttribute('aria-busy', String(isLoading));
+        elements.analyzeBtn.innerHTML = isLoading
+            ? analyzeButtonLoadingHTML
+            : analyzeButtonIdleHTML;
+    }
+
+    if (elements.removeBtn) {
+        elements.removeBtn.disabled = isLoading;
+        elements.removeBtn.setAttribute('aria-disabled', String(isLoading));
     }
 }
 
@@ -316,7 +372,11 @@ function showLoadingState() {
     
     // Animate progress
     let progress = 0;
-    const interval = setInterval(() => {
+    if (loadingProgressInterval) {
+        clearInterval(loadingProgressInterval);
+    }
+
+    loadingProgressInterval = setInterval(() => {
         progress += 2;
         const currentProgress = Math.min(progress, 90);
         
@@ -345,7 +405,8 @@ function showLoadingState() {
         }
         
         if (progress >= 90) {
-            clearInterval(interval);
+            clearInterval(loadingProgressInterval);
+            loadingProgressInterval = null;
         }
     }, 50);
 }
@@ -450,9 +511,15 @@ function stopDoctorReviewAnimation() {
 function hideLoadingState() {
     // Stop doctor review animation
     stopDoctorReviewAnimation();
+
+    if (loadingProgressInterval) {
+        clearInterval(loadingProgressInterval);
+        loadingProgressInterval = null;
+    }
     
-    elements.uploadCard.style.display = 'block';
+    elements.uploadCard.style.display = 'grid';
     elements.loadingCard.style.display = 'none';
+    setAnalyzeControlsLoading(false);
     
     // Reset loading state
     if (elements.progressFill) {
@@ -479,6 +546,11 @@ function hideLoadingState() {
 function showResults(results) {
     // Stop doctor animation
     stopDoctorReviewAnimation();
+
+    if (loadingProgressInterval) {
+        clearInterval(loadingProgressInterval);
+        loadingProgressInterval = null;
+    }
     
     // Complete progress
     if (elements.progressFill) {
@@ -521,6 +593,8 @@ function showResults(results) {
         
         // Scroll to results
         elements.resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        isAnalyzing = false;
+        setAnalyzeControlsLoading(false);
         
     }, 500);
 }
@@ -937,12 +1011,15 @@ async function saveToHistory() {
 }
 
 function handleNewScan() {
+    isAnalyzing = false;
+    setAnalyzeControlsLoading(false);
+
     // Reset state
     handleRemoveImage({ stopPropagation: () => {} });
     
     // Show upload card
     elements.resultsContainer.style.display = 'none';
-    elements.uploadCard.style.display = 'block';
+    elements.uploadCard.style.display = 'grid';
     
     // Reset consultation progress to step 1 (Check-In)
     updateConsultationProgress(1);
@@ -954,15 +1031,16 @@ function handleNewScan() {
 // ==================== Navigation ====================
 function handleNavClick(e) {
     e.preventDefault();
+    const clickedLink = e.currentTarget;
     
     // Remove active class from all links
     elements.navLinks.forEach(link => link.classList.remove('active'));
     
     // Add active class to clicked link
-    e.target.classList.add('active');
+    clickedLink.classList.add('active');
     
     // Get target section
-    const targetId = e.target.getAttribute('href');
+    const targetId = clickedLink.getAttribute('href');
     const targetSection = document.querySelector(targetId);
     
     if (targetSection) {
@@ -971,16 +1049,8 @@ function handleNavClick(e) {
 }
 
 function handleSmoothScroll(e) {
-    // Get href from the clicked element or its parent (for nested elements like logo)
-    let target = e.target;
-    let href = target.getAttribute('href');
-    
-    // Check parent elements if no href found (for nested elements in anchor tags)
-    while (!href && target.parentElement) {
-        target = target.parentElement;
-        href = target.getAttribute('href');
-        if (target.tagName === 'A') break;
-    }
+    const link = e.target.closest('a[href^="#"]');
+    const href = link?.getAttribute('href');
     
     if (href && href.startsWith('#')) {
         e.preventDefault();
@@ -1363,13 +1433,13 @@ async function checkAPIHealth() {
         const data = await response.json();
         
         if (data.status === 'healthy' && data.models_loaded) {
-            console.log('✓ API is healthy and models are loaded');
+            return;
         } else {
-            console.warn('⚠ API is running but models may not be loaded');
+            console.warn('API is running but models may not be loaded');
             showNotification('System initializing. Please wait...', 'info');
         }
     } catch (error) {
-        console.error('✗ Failed to connect to API:', error);
+        console.error('Failed to connect to API:', error);
         showNotification('Unable to connect to server. Please ensure the Flask app is running.', 'error');
     }
 }
@@ -1995,6 +2065,3 @@ window.NeuroScanAI = {
     showHistoryPanel,
     saveToHistory
 };
-
-console.log('%c🧠 NeuroScan AI Initialized', 'color: #334EAC; font-size: 16px; font-weight: bold;');
-console.log('%cReady for brain tumor detection!', 'color: #7098D1; font-size: 14px;');

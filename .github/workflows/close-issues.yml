@@ -1,0 +1,75 @@
+name: 🛠️ Auto Close Linked Issues
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  pull-requests: read
+  issues: write
+
+jobs:
+  close-linked-issues:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto close linked issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const body = pr.body || '';
+            const title = pr.title || '';
+
+            // Combine title and body to scan for keywords
+            const content = `${title}\n${body}`;
+
+            // Case-insensitive regex to capture issue links (e.g. Closes #123, Fix #456)
+            const regex = /\b(?:closes?|fixes?|resolves?|closed|fixed|resolved)\s+#(\d+)\b/gi;
+            const matches = [...content.matchAll(regex)];
+            const issueNumbers = Array.from(new Set(matches.map(match => parseInt(match[1], 10))));
+
+            if (issueNumbers.length === 0) {
+              console.log('No linked issues found in the PR title or body.');
+              return;
+            }
+
+            console.log(`Found linked issues: ${issueNumbers.join(', ')}`);
+
+            for (const issueNumber of issueNumbers) {
+              try {
+                const { data: issue } = await github.rest.issues.get({
+                  owner,
+                  repo,
+                  issue_number: issueNumber
+                });
+                
+                if (issue.state === 'closed') {
+                  console.log(`Issue #${issueNumber} is already closed.`);
+                  continue;
+                }
+                
+                console.log(`Closing issue #${issueNumber}...`);
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  state_reason: 'completed'
+                });
+                
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  body: `Automatically closed after merging pull request #${pr.number}.`
+                });
+                
+                console.log(`Successfully closed issue #${issueNumber}.`);
+              } catch (error) {
+                console.error(`Failed to handle/close issue #${issueNumber}: ${error.message}`);
+              }
+            }
