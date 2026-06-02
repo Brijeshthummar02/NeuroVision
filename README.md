@@ -231,6 +231,50 @@ TumorVision-2StageAI/
 The training notebook reads scan paths relative to the project root, so the folder names and location need to match exactly.
 
 ---
+## Multi-Dataset Ingestion Pipeline
+
+NeuroVision now includes a modular dataset ingestion pipeline designed to support multiple MRI dataset formats and directory structures.
+
+### Supported Dataset Sources
+* TCGA (The Cancer Genome Atlas)
+* BraTS (Brain Tumor Segmentation Challenge)
+
+### Features
+* Unified dataset loading interface
+* Dataset structure validation
+* Image and mask file verification
+* Supported image extension validation
+* Modular architecture for future dataset integrations
+
+### Example Usage
+```python
+from dataset_loader import MultiDatasetLoader
+
+loader = MultiDatasetLoader()
+
+# Load TCGA dataset
+tcga_df = loader.load_dataset(
+    dataset_type="tcga",
+    dataset_path="."
+)
+
+# Load BraTS dataset
+brats_df = loader.load_dataset(
+    dataset_type="brats",
+    dataset_path="./BraTS"
+)
+```
+
+### Standardized Output
+All supported dataset loaders return a standardized DataFrame containing:
+
+* `image_path`
+* `mask_path`
+* `dataset_source`
+
+This allows future training and evaluation pipelines to work with multiple MRI datasets through a single interface.
+
+---
 
 ## Project Structure
 
@@ -245,7 +289,7 @@ TumorVision-2StageAI/
 │   ├── Data generators               # Augmentation pipeline
 │   ├── Model architectures           # Attention ResUNet, CBAM, ASPP
 │   └── TTA prediction                # Test-time augmentation helpers
-│
+├── dataset_loader.py                # Multi-dataset ingestion and validation
 ├── classifier-enhanced-best.keras    # v2.0 classification weights
 ├── AttentionResUNet-v2-weights.keras # v2.0 segmentation weights
 ├── weights.hdf5                      # v1.0 classification weights
