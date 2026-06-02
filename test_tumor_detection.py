@@ -294,3 +294,224 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# =============================================================================
+# Unit tests for validators.py (Issue #14)
+# Run independently: python -m pytest test_tumor_detection.py::TestValidators -v
+#                or: python test_tumor_detection.py --unit
+# =============================================================================
+
+import io
+import struct
+import unittest
+from unittest.mock import MagicMock, patch
+
+
+def _make_jpeg_stream(size: int = 512) -> io.BytesIO:
+    """Minimal valid JPEG magic bytes followed by padding."""
+    return io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * (size - 4))
+
+
+def _make_png_stream(size: int = 512) -> io.BytesIO:
+    return io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * (size - 8))
+
+
+def _make_tiff_le_stream() -> io.BytesIO:
+    return io.BytesIO(b"II*\x00" + b"\x00" * 12)
+
+
+def _make_bad_stream() -> io.BytesIO:
+    return io.BytesIO(b"BADFILE_NOT_IMAGE" + b"\x00" * 10)
+
+
+class TestValidators(unittest.TestCase):
+    """Unit tests for validators.py — no Flask server or model weights required."""
+
+    @classmethod
+    def setUpClass(cls):
+        # Import here so the test class is skippable if validators.py is absent
+        try:
+            from validators import (
+                ValidationError,
+                validate_file_present,
+                validate_file_extension,
+                validate_file_size,
+                validate_mime_type,
+                validate_image_loadable,
+                validate_tensor_shape,
+                MAX_UPLOAD_BYTES,
+            )
+            cls.ValidationError = ValidationError
+            cls.validate_file_present = staticmethod(validate_file_present)
+            cls.validate_file_extension = staticmethod(validate_file_extension)
+            cls.validate_file_size = staticmethod(validate_file_size)
+            cls.validate_mime_type = staticmethod(validate_mime_type)
+            cls.validate_image_loadable = staticmethod(validate_image_loadable)
+            cls.validate_tensor_shape = staticmethod(validate_tensor_shape)
+            cls.MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES
+        except ImportError as exc:
+            raise unittest.SkipTest(f"validators.py not importable: {exc}")
+
+    # ------------------------------------------------------------------
+    # validate_file_present
+    # ------------------------------------------------------------------
+
+    def test_file_present_none_raises_no_file(self):
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_file_present(None)
+        self.assertEqual(ctx.exception.code, "NO_FILE")
+        self.assertEqual(ctx.exception.http_status, 400)
+
+    def test_file_present_empty_filename_raises(self):
+        fake = MagicMock()
+        fake.filename = "   "
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_file_present(fake)
+        self.assertEqual(ctx.exception.code, "EMPTY_FILENAME")
+
+    def test_file_present_valid_passes(self):
+        fake = MagicMock()
+        fake.filename = "brain.jpg"
+        self.assertIsNone(self.validate_file_present(fake))  # returns None on success
+
+    # ------------------------------------------------------------------
+    # validate_file_extension
+    # ------------------------------------------------------------------
+
+    def test_extension_no_dot_raises(self):
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_file_extension("nodotfile")
+        self.assertEqual(ctx.exception.code, "INVALID_EXTENSION")
+        self.assertEqual(ctx.exception.http_status, 415)
+
+    def test_extension_exe_raises(self):
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_file_extension("malware.exe")
+        self.assertEqual(ctx.exception.code, "INVALID_EXTENSION")
+
+    def test_extension_jpg_passes_and_lowercases(self):
+        self.assertEqual(self.validate_file_extension("scan.JPG"), "jpg")
+
+    def test_extension_tiff_passes(self):
+        self.assertEqual(self.validate_file_extension("mri.tiff"), "tiff")
+
+    def test_extension_png_passes(self):
+        self.assertEqual(self.validate_file_extension("brain.PNG"), "png")
+
+    # ------------------------------------------------------------------
+    # validate_file_size
+    # ------------------------------------------------------------------
+
+    def test_file_size_over_limit_raises(self):
+        stream = io.BytesIO(b"x" * (self.MAX_UPLOAD_BYTES + 1))
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_file_size(stream)
+        self.assertEqual(ctx.exception.code, "FILE_TOO_LARGE")
+        self.assertEqual(ctx.exception.http_status, 413)
+
+    def test_file_size_at_limit_passes(self):
+        stream = io.BytesIO(b"x" * self.MAX_UPLOAD_BYTES)
+        size = self.validate_file_size(stream)
+        self.assertEqual(size, self.MAX_UPLOAD_BYTES)
+
+    def test_file_size_rewinds_stream(self):
+        stream = io.BytesIO(b"x" * 100)
+        self.validate_file_size(stream)
+        self.assertEqual(stream.tell(), 0)
+
+    # ------------------------------------------------------------------
+    # validate_mime_type
+    # ------------------------------------------------------------------
+
+    def test_mime_jpeg_detected(self):
+        self.assertEqual(self.validate_mime_type(_make_jpeg_stream()), "jpeg")
+
+    def test_mime_png_detected(self):
+        self.assertEqual(self.validate_mime_type(_make_png_stream()), "png")
+
+    def test_mime_tiff_le_detected(self):
+        self.assertEqual(self.validate_mime_type(_make_tiff_le_stream()), "tiff")
+
+    def test_mime_tiff_be_detected(self):
+        stream = io.BytesIO(b"MM\x00*" + b"\x00" * 12)
+        self.assertEqual(self.validate_mime_type(stream), "tiff")
+
+    def test_mime_bad_bytes_raises(self):
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_mime_type(_make_bad_stream())
+        self.assertEqual(ctx.exception.code, "INVALID_MIME")
+        self.assertEqual(ctx.exception.http_status, 415)
+
+    def test_mime_rewinds_stream(self):
+        stream = _make_jpeg_stream()
+        self.validate_mime_type(stream)
+        self.assertEqual(stream.tell(), 0)
+
+    def test_mime_correct_ext_but_wrong_magic_raises(self):
+        """A .jpg file with non-JPEG content must be rejected."""
+        # Build a stream with PNG magic but the caller would pass it as .jpg
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_mime_type(_make_bad_stream())
+        self.assertEqual(ctx.exception.code, "INVALID_MIME")
+
+    # ------------------------------------------------------------------
+    # validate_image_loadable
+    # ------------------------------------------------------------------
+
+    def test_loadable_neither_arg_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            self.validate_image_loadable()
+
+    @patch("validators.Image")
+    def test_loadable_stream_pil_failure_raises(self, mock_image_module):
+        mock_image_module.open.side_effect = Exception("truncated")
+        stream = _make_jpeg_stream()
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_image_loadable(file_stream=stream)
+        self.assertEqual(ctx.exception.code, "CORRUPTED_IMAGE")
+        self.assertEqual(ctx.exception.http_status, 422)
+
+    @patch("validators.cv2")
+    @patch("validators.Image")
+    def test_loadable_path_both_fail_raises(self, mock_image_module, mock_cv2):
+        mock_cv2.imread.return_value = None
+        mock_image_module.open.side_effect = Exception("cannot open")
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_image_loadable(filepath="/tmp/fake.jpg")
+        self.assertEqual(ctx.exception.code, "CORRUPTED_IMAGE")
+
+    @patch("validators.cv2")
+    def test_loadable_path_cv2_success_returns_true(self, mock_cv2):
+        import numpy as np
+        mock_cv2.imread.return_value = MagicMock()  # non-None
+        result = self.validate_image_loadable(filepath="/tmp/fake.jpg")
+        self.assertTrue(result)
+
+    # ------------------------------------------------------------------
+    # validate_tensor_shape
+    # ------------------------------------------------------------------
+
+    def test_tensor_none_raises(self):
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_tensor_shape(None, (1, 256, 256, 3))
+        self.assertEqual(ctx.exception.code, "INVALID_TENSOR")
+        self.assertEqual(ctx.exception.http_status, 422)
+
+    def test_tensor_wrong_shape_raises(self):
+        import numpy as np
+        tensor = np.zeros((1, 128, 128, 3))
+        with self.assertRaises(self.ValidationError) as ctx:
+            self.validate_tensor_shape(tensor, (1, 256, 256, 3))
+        self.assertEqual(ctx.exception.code, "INVALID_TENSOR")
+
+    def test_tensor_correct_shape_passes(self):
+        import numpy as np
+        tensor = np.zeros((1, 256, 256, 3))
+        self.assertTrue(self.validate_tensor_shape(tensor, (1, 256, 256, 3)))
+
+
+if __name__ == "__main__" and "--unit" in sys.argv:
+    # Allow: python test_tumor_detection.py --unit
+    sys.argv.remove("--unit")
+    unittest.main(verbosity=2)
