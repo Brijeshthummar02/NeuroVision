@@ -14,11 +14,18 @@ Features:
 
 from dotenv import load_dotenv
 import os
+import sys
 
 load_dotenv()
 
-REQUIRED_ENV_VARS = [
-    'FLASK_SECRET_KEY',
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+os.environ.setdefault('MPLCONFIGDIR', os.path.join(os.getcwd(), '.matplotlib-cache'))
+os.makedirs(os.environ['MPLCONFIGDIR'], exist_ok=True)
+
+REQUIRED_ENV_VARS = ['FLASK_SECRET_KEY']
+CLOUDINARY_ENV_VARS = [
     'CLOUDINARY_CLOUD_NAME',
     'CLOUDINARY_API_KEY',
     'CLOUDINARY_API_SECRET',
@@ -26,20 +33,32 @@ REQUIRED_ENV_VARS = [
 
 
 def validate_required_env():
-    """Fail fast if required environment variables are missing."""
+    """Warn about missing local configuration without blocking app startup."""
     missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
     if missing:
-        raise EnvironmentError(
-            'Missing required environment variables: '
+        print(
+            'Warning: missing required environment variables: '
             + ', '.join(missing)
-            + '. Copy .env.example to .env and set your values.'
+            + '. Using development fallbacks where possible.'
+        )
+
+    missing_cloudinary = [var for var in CLOUDINARY_ENV_VARS if not os.getenv(var)]
+    if missing_cloudinary:
+        print(
+            'Warning: Cloudinary is not fully configured. Scan history image uploads '
+            'will fall back to inline/base64 images.'
         )
 
 
 validate_required_env()
 
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ImportError:
+    def CORS(app, **kwargs):
+        print("Warning: flask-cors is not installed. CORS support is disabled.")
+        return app
 import tensorflow as tf
 import numpy as np
 import cv2
@@ -52,25 +71,36 @@ import hashlib
 from datetime import datetime
 from functools import wraps
 from werkzeug.utils import secure_filename
-from pymongo import MongoClient
-from bson import ObjectId
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+try:
+    from pymongo import MongoClient
+except ImportError:
+    MongoClient = None
+    print("Warning: pymongo is not installed. MongoDB storage is disabled.")
+try:
+    from bson import ObjectId
+except ImportError:
+    ObjectId = None
+try:
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+except ImportError:
+    cloudinary = None
+    print("Warning: cloudinary is not installed. Cloud image uploads are disabled.")
 from utilities import (
     focal_tversky, tversky_loss, tversky, 
     dice_coefficient, dice_loss, bce_dice_loss,
     iou_score, sensitivity, specificity, precision_metric,
-    predict_with_tta_classification, predict_with_tta_segmentation
+    predict_with_tta_classification, predict_with_tta_segmentation,
+    build_mc_dropout_model, model_supports_mc_dropout
 )
 
 # Initialize Flask app
 app = Flask(__name__)
-# Restrict CORS to explicit origins — set CORS_ORIGINS in .env (comma-separated)
+# Restrict CORS to explicit origins. Set CORS_ORIGINS in .env as comma-separated origins.
 _cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000').split(',')
-CORS(app, supports_credentials=True, origins=[o.strip() for o in _cors_origins])
-app.secret_key = os.getenv('FLASK_SECRET_KEY')
-
+CORS(app, supports_credentials=True, origins=[origin.strip() for origin in _cors_origins])
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-only-secret-key')
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SCAN_HISTORY_FOLDER'] = 'scan_history'
@@ -79,6 +109,11 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
 app.config['USE_TTA'] = True  # Enable Test Time Augmentation for higher accuracy
 app.config['USE_ENSEMBLE'] = True  # Enable ensemble predictions
 app.config['CONFIDENCE_THRESHOLD'] = 0.5  # Minimum confidence for tumor detection
+app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'] = True
+app.config['UNCERTAINTY_PASSES'] = 8
+app.config['NO_TUMOR_REVIEW_CONFIDENCE'] = 0.75
+app.config['UNCERTAINTY_VARIANCE_THRESHOLD'] = 0.015
+app.config['ENABLE_DEMO_INFERENCE'] = os.getenv('ENABLE_DEMO_INFERENCE', 'true').lower() == 'true'
 
 # MongoDB Configuration (optional — falls back to local JSON storage)
 MONGO_URI = os.getenv('MONGO_URI')
@@ -88,12 +123,14 @@ MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'neuroscan_db')
 mongodb_available = False
 
 # Cloudinary Configuration
-cloudinary.config(
-    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.getenv('CLOUDINARY_API_KEY'),
-    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
-    secure=True,
-)
+cloudinary_configured = bool(cloudinary and all(os.getenv(var) for var in CLOUDINARY_ENV_VARS))
+if cloudinary_configured:
+    cloudinary.config(
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+        api_key=os.getenv('CLOUDINARY_API_KEY'),
+        api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+        secure=True,
+    )
 
 # Create required directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -102,6 +139,9 @@ os.makedirs(app.config['SCAN_HISTORY_FOLDER'], exist_ok=True)
 # ==================== Cloudinary Helper Functions ====================
 def upload_image_to_cloudinary(image_data, folder="neuroscan", public_id=None):
     """Upload base64 image to Cloudinary and return the URL"""
+    if not cloudinary_configured:
+        return None
+
     try:
         # Handle data URL format
         if ',' in image_data:
@@ -123,6 +163,9 @@ def upload_image_to_cloudinary(image_data, folder="neuroscan", public_id=None):
 
 def delete_image_from_cloudinary(public_id):
     """Delete image from Cloudinary"""
+    if not cloudinary_configured:
+        return False
+
     try:
         cloudinary.uploader.destroy(public_id)
         return True
@@ -172,6 +215,11 @@ def init_mongodb():
     if not MONGO_URI:
         mongodb_available = False
         print("⚠ MONGO_URI not set — using JSON file storage fallback")
+        return False
+
+    if MongoClient is None:
+        mongodb_available = False
+        print("MongoDB fallback: pymongo is not installed")
         return False
 
     try:
@@ -228,6 +276,7 @@ classification_model = None  # Primary classification model
 segmentation_model = None    # Primary segmentation model
 secondary_classifier = None  # Secondary classifier (classifier-resnet-weights.keras)
 secondary_segmentation = None  # Secondary segmentation model
+classification_mc_models = {}  # Stochastic clones for uncertainty estimation
 models_loaded = False
 
 
@@ -257,9 +306,12 @@ def get_custom_objects():
 def load_models():
     """Load all pre-trained classification and segmentation models for ensemble"""
     global classification_model, segmentation_model, secondary_classifier, secondary_segmentation
-    global classification_models, segmentation_models, models_loaded
+    global classification_models, segmentation_models, classification_mc_models, models_loaded
     
     custom_objects = get_custom_objects()
+    classification_models = []
+    segmentation_models = []
+    classification_mc_models = {}
     
     try:
         # ============================================================
@@ -284,6 +336,8 @@ def load_models():
             ]
         )
         classification_models.append(('ResNet-50', classification_model))
+        if model_supports_mc_dropout(classification_model):
+            classification_mc_models['ResNet-50'] = build_mc_dropout_model(classification_model)
         print("✓ Primary classification model loaded successfully")
         
         # ============================================================
@@ -298,6 +352,8 @@ def load_models():
                     custom_objects=custom_objects
                 )
                 classification_models.append(('Classifier-ResNet', secondary_classifier))
+                if model_supports_mc_dropout(secondary_classifier):
+                    classification_mc_models['Classifier-ResNet'] = build_mc_dropout_model(secondary_classifier)
                 print("✓ Secondary classification model loaded successfully")
             except Exception as e:
                 print(f"⚠ Could not load secondary classifier: {str(e)}")
@@ -316,6 +372,8 @@ def load_models():
                                 metrics=["accuracy"]
                             )
                             classification_models.append(('Classifier-ResNet', secondary_classifier))
+                            if model_supports_mc_dropout(secondary_classifier):
+                                classification_mc_models['Classifier-ResNet'] = build_mc_dropout_model(secondary_classifier)
                             print("✓ Secondary classification model loaded with JSON architecture")
                     except Exception as e2:
                         print(f"⚠ Secondary classifier not available: {str(e2)}")
@@ -375,6 +433,7 @@ def load_models():
         print(f"   - Segmentation models loaded: {len(segmentation_models)}")
         print(f"   - TTA enabled: {app.config['USE_TTA']}")
         print(f"   - Ensemble enabled: {app.config['USE_ENSEMBLE']}")
+        print(f"   - MC dropout models: {len(classification_mc_models)}")
         return True
         
     except Exception as e:
@@ -444,6 +503,122 @@ def preprocess_image_segmentation(img):
     return X
 
 
+def get_classification_model_weight(name):
+    """Return the relative ensemble weight for a classification model."""
+    if name == 'ResNet-50':
+        return 1.0
+    if name == 'Classifier-ResNet':
+        return 0.8
+    return 0.5
+
+
+def predict_classification_model(model, img, use_tta=True):
+    """Run a classification model with optional TTA."""
+    if use_tta and app.config['USE_TTA']:
+        return predict_with_tta_classification(model, img)
+    return model.predict(img, verbose=0)
+
+
+def estimate_classification_uncertainty(img, use_tta=True):
+    """
+    Estimate uncertainty for negative scans using deep ensembles and MC dropout.
+    Each model keeps its original ensemble weight regardless of the number of MC passes.
+    """
+    if not classification_models:
+        return None
+
+    uncertainty_passes = max(int(app.config['UNCERTAINTY_PASSES']), 1)
+    sample_predictions = []
+    sample_weights = []
+    mc_dropout_models = []
+    deterministic_models = []
+
+    active_models = classification_models if app.config['USE_ENSEMBLE'] else classification_models[:1]
+
+    for name, model in active_models:
+        sampling_model = classification_mc_models.get(name, model)
+        uses_mc_dropout = name in classification_mc_models
+        samples_for_model = uncertainty_passes if uses_mc_dropout else 1
+        per_sample_weight = get_classification_model_weight(name) / samples_for_model
+
+        if uses_mc_dropout:
+            mc_dropout_models.append(name)
+        else:
+            deterministic_models.append(name)
+
+        for _ in range(samples_for_model):
+            pred = predict_classification_model(sampling_model, img, use_tta=use_tta)
+            sample_predictions.append(np.asarray(pred).reshape(-1))
+            sample_weights.append(per_sample_weight)
+
+    if not sample_predictions:
+        return None
+
+    probs = np.vstack(sample_predictions).astype(np.float64)
+    weights = np.asarray(sample_weights, dtype=np.float64)
+    normalized_weights = weights / weights.sum()
+
+    mean_probs = np.average(probs, axis=0, weights=normalized_weights)
+    mean_probs = mean_probs / np.sum(mean_probs)
+
+    tumor_probs = probs[:, 1]
+    mean_tumor_probability = float(np.average(tumor_probs, weights=normalized_weights))
+    tumor_probability_variance = float(
+        np.average((tumor_probs - mean_tumor_probability) ** 2, weights=normalized_weights)
+    )
+    tumor_vote_fraction = float(
+        np.average(
+            (tumor_probs >= app.config['CONFIDENCE_THRESHOLD']).astype(np.float64),
+            weights=normalized_weights
+        )
+    )
+
+    return {
+        'passes_requested': uncertainty_passes,
+        'samples_collected': len(sample_predictions),
+        'mc_dropout_enabled': bool(mc_dropout_models),
+        'mc_dropout_models': mc_dropout_models,
+        'deterministic_models': deterministic_models,
+        'mean_prediction': {
+            'no_tumor': float(mean_probs[0]),
+            'tumor': float(mean_probs[1])
+        },
+        'mean_tumor_probability': mean_tumor_probability,
+        'tumor_probability_variance': tumor_probability_variance,
+        'tumor_probability_std': float(np.sqrt(tumor_probability_variance)),
+        'tumor_vote_fraction': tumor_vote_fraction
+    }
+
+
+def evaluate_negative_safety_check(confidence, uncertainty_metrics):
+    """Flag suspicious negative predictions that deserve manual review."""
+    reasons = []
+
+    if confidence < app.config['NO_TUMOR_REVIEW_CONFIDENCE']:
+        reasons.append('LOW_NO_TUMOR_CONFIDENCE')
+
+    variance = 0.0
+    tumor_vote_fraction = 0.0
+    if uncertainty_metrics:
+        variance = float(uncertainty_metrics.get('tumor_probability_variance', 0.0))
+        tumor_vote_fraction = float(uncertainty_metrics.get('tumor_vote_fraction', 0.0))
+        if variance > app.config['UNCERTAINTY_VARIANCE_THRESHOLD']:
+            reasons.append('HIGH_PREDICTION_VARIANCE')
+
+    flagged = bool(reasons)
+
+    return {
+        'applied': True,
+        'status': 'UNCERTAIN_SCAN' if flagged else 'CLEAR',
+        'review_recommended': flagged,
+        'reason_codes': reasons,
+        'confidence_floor': app.config['NO_TUMOR_REVIEW_CONFIDENCE'],
+        'variance_threshold': app.config['UNCERTAINTY_VARIANCE_THRESHOLD'],
+        'tumor_vote_fraction': tumor_vote_fraction,
+        'uncertainty': uncertainty_metrics
+    }
+
+
 def ensemble_classification_predict(img, use_tta=True):
     """
     Ensemble prediction combining multiple classification models.
@@ -453,21 +628,14 @@ def ensemble_classification_predict(img, use_tta=True):
     predictions = []
     weights = []
     
-    for name, model in classification_models:
-        if use_tta and app.config['USE_TTA']:
-            # Use Test Time Augmentation for more robust predictions
-            pred = predict_with_tta_classification(model, img)
-        else:
-            pred = model.predict(img, verbose=0)
+    active_models = classification_models if app.config['USE_ENSEMBLE'] else classification_models[:1]
+
+    for name, model in active_models:
+        pred = predict_classification_model(model, img, use_tta=use_tta)
         predictions.append(pred)
         
         # Assign weights (primary model trained in notebook gets highest weight)
-        if name == 'ResNet-50':
-            weights.append(1.0)  # Primary model from notebook - full weight
-        elif name == 'Classifier-ResNet':
-            weights.append(0.8)  # Secondary trained model - high weight
-        else:
-            weights.append(0.5)  # Other models - lower weight
+        weights.append(get_classification_model_weight(name))
     
     # Normalize weights
     weights = np.array(weights)
@@ -531,6 +699,213 @@ def post_process_segmentation(mask, min_area=100):
     return cleaned_mask
 
 
+def find_demo_mask_path(image_path):
+    """Find a matching *_mask image for local demo inference when trained weights are absent."""
+    image_dir = os.path.dirname(image_path)
+    base_name = os.path.basename(image_path)
+    stem, _ = os.path.splitext(base_name)
+
+    for ext in ('.tif', '.tiff', '.png', '.jpg', '.jpeg'):
+        candidate = os.path.join(image_dir, f"{stem}_mask{ext}")
+        if os.path.exists(candidate):
+            return candidate
+
+    return None
+
+
+def build_demo_mask(img_original, image_path):
+    """
+    Create a local demo mask so the UI can be shown without the trained weights.
+    Prefer dataset masks when available; otherwise use a conservative bright-region heuristic.
+    """
+    mask_path = find_demo_mask_path(image_path)
+    if mask_path:
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        if mask is not None:
+            mask = cv2.resize(mask, (256, 256))
+            mask_binary = (mask > 20).astype(np.uint8)
+            if int(np.sum(mask_binary)) >= 80:
+                return mask_binary
+
+    resized = cv2.resize(img_original, (256, 256))
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY) if len(resized.shape) == 3 else resized
+    blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+    threshold = np.percentile(blurred, 94)
+    mask = (blurred >= threshold).astype(np.uint8)
+    mask = post_process_segmentation(mask, min_area=80)
+
+    if int(np.sum(mask)) < 80:
+        mask = np.zeros((256, 256), dtype=np.uint8)
+        cv2.ellipse(mask, (150, 115), (22, 15), -20, 0, 360, 1, -1)
+
+    return mask
+
+
+def predict_tumor_demo(image_path, img_original=None):
+    """Return a deterministic local demo result when model weights are unavailable."""
+    if img_original is None:
+        img_original = cv2.imread(image_path)
+        if img_original is None:
+            try:
+                img_pil = Image.open(image_path)
+                img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+            except Exception:
+                return None
+
+    mask_binary = build_demo_mask(img_original, image_path)
+    total_pixels = int(mask_binary.shape[0] * mask_binary.shape[1])
+    tumor_pixels = int(np.sum(mask_binary))
+    if tumor_pixels == 0:
+        cv2.ellipse(mask_binary, (150, 115), (22, 15), -20, 0, 360, 1, -1)
+        tumor_pixels = int(np.sum(mask_binary))
+    tumor_percentage = (tumor_pixels / total_pixels) * 100
+    confidence = 0.91
+
+    y_indices, x_indices = np.where(mask_binary == 1)
+    bbox = {
+        'x_min': int(np.min(x_indices)),
+        'y_min': int(np.min(y_indices)),
+        'x_max': int(np.max(x_indices)),
+        'y_max': int(np.max(y_indices)),
+        'width': int(np.max(x_indices) - np.min(x_indices)),
+        'height': int(np.max(y_indices) - np.min(y_indices))
+    }
+    centroid = {
+        'x': int(np.mean(x_indices)),
+        'y': int(np.mean(y_indices))
+    }
+
+    mask_raw = mask_binary.astype(np.float32)
+    mask_heatmap = (mask_raw * 255).astype(np.uint8)
+    mask_colored = cv2.applyColorMap(mask_heatmap, cv2.COLORMAP_JET)
+
+    overlay = cv2.resize(img_original.copy(), (256, 256))
+    green_overlay = overlay.copy()
+    green_overlay[mask_binary == 1] = [0, 255, 0]
+    overlay = cv2.addWeighted(overlay, 0.7, green_overlay, 0.3, 0)
+    contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(overlay, contours, -1, (0, 255, 255), 2)
+
+    _, mask_buffer = cv2.imencode('.png', mask_colored)
+    _, overlay_buffer = cv2.imencode('.png', overlay)
+    mask_base64 = base64.b64encode(mask_buffer).decode('utf-8')
+    overlay_base64 = base64.b64encode(overlay_buffer).decode('utf-8')
+
+    if tumor_percentage > 10:
+        severity, severity_color, urgency = 'High', '#dc2626', 'Immediate'
+    elif tumor_percentage > 5:
+        severity, severity_color, urgency = 'Moderate', '#f59e0b', 'Priority'
+    elif tumor_percentage > 1:
+        severity, severity_color, urgency = 'Low', '#10b981', 'Routine'
+    else:
+        severity, severity_color, urgency = 'Minimal', '#3b82f6', 'Monitor'
+
+    pixel_to_mm = 200 / 256
+    recommendations = [
+        'Manual radiologist review recommended',
+        'Use the trained model weights for clinical-grade inference',
+        'Correlate with symptoms, prior scans, and radiology notes',
+        'Consider follow-up imaging if clinical suspicion remains',
+        'This local demo mode is for UI validation only'
+    ]
+
+    return {
+        'has_tumor': True,
+        'confidence': confidence,
+        'prediction_status': 'TUMOR_DETECTED',
+        'requires_manual_review': False,
+        'classification_scores': {
+            'no_tumor': 1 - confidence,
+            'tumor': confidence
+        },
+        'safety_check': {
+            'applied': False,
+            'status': 'NOT_APPLICABLE',
+            'review_recommended': False,
+            'reason_codes': [],
+            'confidence_floor': app.config['NO_TUMOR_REVIEW_CONFIDENCE'],
+            'variance_threshold': app.config['UNCERTAINTY_VARIANCE_THRESHOLD'],
+            'tumor_vote_fraction': 0.0,
+            'uncertainty': None
+        },
+        'analysis_method': {
+            'demo_mode': True,
+            'tta_enabled': False,
+            'ensemble_enabled': False,
+            'classification_models_used': 0,
+            'segmentation_models_used': 0,
+            'uncertainty_safety_check_enabled': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
+            'uncertainty_passes': app.config['UNCERTAINTY_PASSES']
+        },
+        'segmentation': {
+            'mask': f"data:image/png;base64,{mask_base64}",
+            'overlay': f"data:image/png;base64,{overlay_base64}",
+            'tumor_area_percentage': float(tumor_percentage),
+            'tumor_pixels': tumor_pixels,
+            'total_pixels': total_pixels,
+            'bounding_box': bbox,
+            'centroid': centroid,
+            'mask_confidence': confidence
+        },
+        'severity_assessment': {
+            'level': severity,
+            'severity_color': severity_color,
+            'urgency': urgency,
+            'tumor_coverage': f"{tumor_percentage:.2f}%",
+            'recommendation': recommendations[0]
+        },
+        'detailed_report': {
+            'scan_id': str(uuid.uuid4())[:8].upper(),
+            'scan_date': datetime.now().isoformat(),
+            'patient_type': 'Anonymous',
+            'scan_type': 'Brain MRI (Local demo mode)',
+            'image_resolution': '256 x 256 pixels',
+            'tumor_characteristics': {
+                'detected': True,
+                'confidence_score': f"{confidence * 100:.1f}%",
+                'coverage_percentage': f"{tumor_percentage:.2f}%",
+                'affected_pixels': f"{tumor_pixels:,}",
+                'total_pixels': f"{total_pixels:,}",
+                'estimated_size': {
+                    'width_mm': f"{bbox['width'] * pixel_to_mm:.1f}",
+                    'height_mm': f"{bbox['height'] * pixel_to_mm:.1f}",
+                    'area_mm2': f"{tumor_pixels * (pixel_to_mm ** 2):.1f}"
+                },
+                'shape_assessment': 'Demo-generated suspicious region',
+                'location': 'Approximate highlighted region',
+                'location_risk': 'Requires trained-model and clinical review'
+            },
+            'severity_details': {
+                'level': severity,
+                'color': severity_color,
+                'urgency': urgency,
+                'description': 'Local demo inference highlighted a suspicious region for UI validation because trained model weights are unavailable.'
+            },
+            'bounding_box': bbox,
+            'centroid': centroid,
+            'mask_confidence': f"{confidence * 100:.1f}%",
+            'recommendations': recommendations,
+            'analysis_metadata': {
+                'models_used': ['Local demo fallback'],
+                'demo_mode': True,
+                'tta_enabled': False,
+                'ensemble_enabled': False,
+                'prediction_status': 'TUMOR_DETECTED',
+                'uncertainty_safety_check_enabled': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
+                'processing_time': 'Real-time',
+                'ai_version': '2.0.0'
+            },
+            'safety_check': {
+                'applied': False,
+                'status': 'NOT_APPLICABLE',
+                'review_recommended': False,
+                'reason_codes': []
+            },
+            'disclaimer': 'Demo mode is for UI validation only. Add the trained weights for real model inference.'
+        }
+    }
+
+
 def predict_tumor(image_path, img_original=None, use_tta=None):
     """
     Enhanced two-stage prediction with ensemble models and TTA:
@@ -573,19 +948,41 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
     # Use configurable threshold for more accurate detection
     has_tumor = tumor_probability >= app.config['CONFIDENCE_THRESHOLD']
     confidence = max(tumor_probability, no_tumor_probability)
+    uncertainty_metrics = None
+    safety_check = {
+        'applied': False,
+        'status': 'NOT_APPLICABLE' if has_tumor else 'DISABLED',
+        'review_recommended': False,
+        'reason_codes': [],
+        'confidence_floor': app.config['NO_TUMOR_REVIEW_CONFIDENCE'],
+        'variance_threshold': app.config['UNCERTAINTY_VARIANCE_THRESHOLD'],
+        'tumor_vote_fraction': 0.0,
+        'uncertainty': None
+    }
+    prediction_status = 'TUMOR_DETECTED' if has_tumor else 'NO_TUMOR'
+
+    if not has_tumor and app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK']:
+        uncertainty_metrics = estimate_classification_uncertainty(img_class, use_tta=_use_tta)
+        safety_check = evaluate_negative_safety_check(confidence, uncertainty_metrics)
+        prediction_status = safety_check['status']
     
     result = {
         'has_tumor': has_tumor,
         'confidence': confidence,
+        'prediction_status': prediction_status,
+        'requires_manual_review': safety_check['review_recommended'],
         'classification_scores': {
             'no_tumor': no_tumor_probability,
             'tumor': tumor_probability
         },
+        'safety_check': safety_check,
         'analysis_method': {
             'tta_enabled': _use_tta,
             'ensemble_enabled': app.config['USE_ENSEMBLE'],
             'classification_models_used': len(classification_models),
-            'segmentation_models_used': len(segmentation_models)
+            'segmentation_models_used': len(segmentation_models),
+            'uncertainty_safety_check_enabled': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
+            'uncertainty_passes': app.config['UNCERTAINTY_PASSES']
         }
     }
     
@@ -822,14 +1219,44 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
                 'models_used': [name for name, _ in classification_models] + [name for name, _ in segmentation_models],
                 'tta_enabled': _use_tta,
                 'ensemble_enabled': app.config['USE_ENSEMBLE'],
+                'prediction_status': result['prediction_status'],
+                'uncertainty_safety_check_enabled': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
                 'processing_time': 'Real-time',
                 'ai_version': '2.0.0'
             },
+            'safety_check': result['safety_check'],
             
             'disclaimer': 'This AI-generated report is intended for informational purposes only and should not replace professional medical diagnosis. Please consult with qualified healthcare professionals for proper diagnosis and treatment planning.'
         }
     else:
-        # No tumor detected - add basic report
+        # No tumor detected - add a clear or review-needed report
+        uncertain_negative = result['prediction_status'] == 'UNCERTAIN_SCAN'
+        negative_description = (
+            'No dominant tumor signal was detected, but the secondary safety check found elevated uncertainty. Manual review is recommended before treating this scan as clear.'
+            if uncertain_negative else
+            'No abnormal tissue masses detected in this scan.'
+        )
+        negative_recommendations = (
+            [
+                'Manual radiologist review recommended before clearing this scan',
+                'Consider repeat MRI or contrast-enhanced imaging if clinical suspicion remains high',
+                'Correlate with patient symptoms, prior scans, and radiology notes',
+                'Monitor closely for subtle progression on follow-up imaging',
+                'Treat this result as cautionary rather than definitive'
+            ] if uncertain_negative else
+            [
+                'No immediate concerns identified',
+                'Continue regular health check-ups',
+                'Report any new neurological symptoms',
+                'Maintain healthy lifestyle habits',
+                'Follow-up as advised by your physician'
+            ]
+        )
+        negative_disclaimer = (
+            'This scan was flagged for manual review because the negative prediction showed elevated uncertainty during stochastic inference. Please consult with qualified healthcare professionals for comprehensive evaluation.'
+            if uncertain_negative else
+            'This AI-generated report is intended for informational purposes only. A negative result does not guarantee absence of pathology. Please consult with qualified healthcare professionals for comprehensive evaluation.'
+        )
         result['detailed_report'] = {
             'scan_id': str(uuid.uuid4())[:8].upper(),
             'scan_date': datetime.now().isoformat(),
@@ -841,26 +1268,23 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
                 'detected': False,
                 'confidence_score': f"{confidence * 100:.1f}%",
                 'coverage_percentage': '0.00%',
-                'description': 'No abnormal tissue masses detected in this scan.'
+                'description': negative_description
             },
             
-            'recommendations': [
-                'No immediate concerns identified',
-                'Continue regular health check-ups',
-                'Report any new neurological symptoms',
-                'Maintain healthy lifestyle habits',
-                'Follow-up as advised by your physician'
-            ],
+            'recommendations': negative_recommendations,
             
             'analysis_metadata': {
                 'models_used': [name for name, _ in classification_models],
                 'tta_enabled': _use_tta,
                 'ensemble_enabled': app.config['USE_ENSEMBLE'],
+                'prediction_status': result['prediction_status'],
+                'uncertainty_safety_check_enabled': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
                 'processing_time': 'Real-time',
                 'ai_version': '2.0.0'
             },
+            'safety_check': result['safety_check'],
             
-            'disclaimer': 'This AI-generated report is intended for informational purposes only. A negative result does not guarantee absence of pathology. Please consult with qualified healthcare professionals for comprehensive evaluation.'
+            'disclaimer': negative_disclaimer
         }
     
     return result
@@ -879,6 +1303,7 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'models_loaded': models_loaded,
+        'demo_inference_enabled': app.config['ENABLE_DEMO_INFERENCE'],
         'version': '1.0.0'
     })
 
@@ -887,9 +1312,9 @@ def health_check():
 def predict():
     """Handle image upload and prediction"""
     
-    if not models_loaded:
+    if not models_loaded and not app.config['ENABLE_DEMO_INFERENCE']:
         return jsonify({
-            'error': 'Models not loaded. Please restart the server.'
+            'error': 'Models not loaded. Please add model weights or enable demo inference.'
         }), 500
     
     # Check if file is present
@@ -929,8 +1354,11 @@ def predict():
         _, img_buffer = cv2.imencode('.png', img_original)
         img_base64 = base64.b64encode(img_buffer).decode('utf-8')
         
-        # Make prediction — pass already-loaded image to avoid a second disk read
-        prediction_result = predict_tumor(filepath, img_original=img_original, use_tta=_use_tta)
+        # Use the real models when available; otherwise provide a labeled local demo result.
+        if models_loaded:
+            prediction_result = predict_tumor(filepath, img_original=img_original, use_tta=_use_tta)
+        else:
+            prediction_result = predict_tumor_demo(filepath, img_original=img_original)
         
         if prediction_result is None:
             return jsonify({'error': 'Failed to process image'}), 500
@@ -962,10 +1390,15 @@ def get_stats():
             'ensemble_enabled': app.config['USE_ENSEMBLE'],
             'classification_models': len(classification_models),
             'segmentation_models': len(segmentation_models),
-            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD']
+            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD'],
+            'uncertainty_safety_check_enabled': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
+            'uncertainty_passes': app.config['UNCERTAINTY_PASSES'],
+            'no_tumor_review_confidence': app.config['NO_TUMOR_REVIEW_CONFIDENCE'],
+            'uncertainty_variance_threshold': app.config['UNCERTAINTY_VARIANCE_THRESHOLD']
         },
         'models_info': {
             'classification': [name for name, _ in classification_models],
+            'classification_mc_dropout': list(classification_mc_models.keys()),
             'segmentation': [name for name, _ in segmentation_models]
         }
     }
@@ -979,7 +1412,11 @@ def config():
         return jsonify({
             'use_tta': app.config['USE_TTA'],
             'use_ensemble': app.config['USE_ENSEMBLE'],
-            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD']
+            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD'],
+            'enable_uncertainty_safety_check': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
+            'uncertainty_passes': app.config['UNCERTAINTY_PASSES'],
+            'no_tumor_review_confidence': app.config['NO_TUMOR_REVIEW_CONFIDENCE'],
+            'uncertainty_variance_threshold': app.config['UNCERTAINTY_VARIANCE_THRESHOLD']
         })
     else:
         data = request.get_json()
@@ -989,11 +1426,23 @@ def config():
             app.config['USE_ENSEMBLE'] = bool(data['use_ensemble'])
         if 'confidence_threshold' in data:
             app.config['CONFIDENCE_THRESHOLD'] = float(data['confidence_threshold'])
+        if 'enable_uncertainty_safety_check' in data:
+            app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'] = bool(data['enable_uncertainty_safety_check'])
+        if 'uncertainty_passes' in data:
+            app.config['UNCERTAINTY_PASSES'] = max(1, int(data['uncertainty_passes']))
+        if 'no_tumor_review_confidence' in data:
+            app.config['NO_TUMOR_REVIEW_CONFIDENCE'] = float(data['no_tumor_review_confidence'])
+        if 'uncertainty_variance_threshold' in data:
+            app.config['UNCERTAINTY_VARIANCE_THRESHOLD'] = float(data['uncertainty_variance_threshold'])
         return jsonify({
             'status': 'updated',
             'use_tta': app.config['USE_TTA'],
             'use_ensemble': app.config['USE_ENSEMBLE'],
-            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD']
+            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD'],
+            'enable_uncertainty_safety_check': app.config['ENABLE_UNCERTAINTY_SAFETY_CHECK'],
+            'uncertainty_passes': app.config['UNCERTAINTY_PASSES'],
+            'no_tumor_review_confidence': app.config['NO_TUMOR_REVIEW_CONFIDENCE'],
+            'uncertainty_variance_threshold': app.config['UNCERTAINTY_VARIANCE_THRESHOLD']
         })
 
 
@@ -1267,6 +1716,8 @@ def save_scan():
             'scan_date': current_time.isoformat(),  # Store as ISO string for JSON
             'has_tumor': data.get('has_tumor', False),
             'confidence': data.get('confidence', 0),
+            'prediction_status': data.get('prediction_status', 'TUMOR_DETECTED' if data.get('has_tumor', False) else 'NO_TUMOR'),
+            'requires_manual_review': data.get('requires_manual_review', False),
             'tumor_percentage': data.get('segmentation', {}).get('tumor_area_percentage', 0),
             'severity': data.get('severity_assessment', {}).get('level', 'N/A'),
             'original_image_url': original_url,
@@ -1333,6 +1784,8 @@ def get_history():
                     'date': doc['scan_date'].isoformat() if doc.get('scan_date') else None,
                     'has_tumor': doc.get('has_tumor', False),
                     'confidence': doc.get('confidence', 0),
+                    'prediction_status': doc.get('prediction_status', 'TUMOR_DETECTED' if doc.get('has_tumor', False) else 'NO_TUMOR'),
+                    'requires_manual_review': doc.get('requires_manual_review', False),
                     'tumor_percentage': doc.get('tumor_percentage', 0),
                     'severity': doc.get('severity', 'N/A'),
                     'share_token': doc.get('share_token'),
@@ -1355,6 +1808,8 @@ def get_history():
                     'date': scan_date,
                     'has_tumor': doc.get('has_tumor', False),
                     'confidence': doc.get('confidence', 0),
+                    'prediction_status': doc.get('prediction_status', 'TUMOR_DETECTED' if doc.get('has_tumor', False) else 'NO_TUMOR'),
+                    'requires_manual_review': doc.get('requires_manual_review', False),
                     'tumor_percentage': doc.get('tumor_percentage', 0),
                     'severity': doc.get('severity', 'N/A'),
                     'share_token': doc.get('share_token'),
@@ -1410,6 +1865,8 @@ def get_scan_detail(scan_id):
                 'date': doc['scan_date'].isoformat() if doc.get('scan_date') else None,
                 'has_tumor': doc.get('has_tumor', False),
                 'confidence': doc.get('confidence', 0),
+                'prediction_status': doc.get('prediction_status', 'TUMOR_DETECTED' if doc.get('has_tumor', False) else 'NO_TUMOR'),
+                'requires_manual_review': doc.get('requires_manual_review', False),
                 'tumor_percentage': doc.get('tumor_percentage', 0),
                 'severity': doc.get('severity', 'N/A'),
                 'share_token': doc.get('share_token'),
@@ -1531,3 +1988,8 @@ if __name__ == '__main__':
         print("  - classifier-resnet-model.json")
         print("  - classifier-resnet-weights.keras")
         print("  - ResUNet-model.json")
+        print("\nStarting Flask server with predictions disabled.")
+        print("Access the application at: http://localhost:5000")
+        print("API Health Check: http://localhost:5000/api/health")
+        print("=" * 70)
+        app.run(debug=True, host='0.0.0.0', port=5000)

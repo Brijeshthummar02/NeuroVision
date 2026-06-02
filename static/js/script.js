@@ -601,13 +601,20 @@ function showResults(results) {
 
 function generateResultsHTML(results) {
     const hasTumor = results.has_tumor;
+    const predictionStatus = results.prediction_status || (hasTumor ? 'TUMOR_DETECTED' : 'NO_TUMOR');
+    const isUncertainScan = predictionStatus === 'UNCERTAIN_SCAN';
+    const needsAttention = hasTumor || isUncertainScan;
     const confidence = (results.confidence * 100).toFixed(1);
     const report = results.detailed_report || {};
+    const safetyCheck = results.safety_check || {};
+    const uncertainty = safetyCheck.uncertainty || {};
     
     // Doctor's verdict based on results
-    const doctorVerdict = hasTumor 
+    const doctorVerdict = hasTumor
         ? `Based on my examination and the AI analysis, I've identified an abnormal tissue mass in the MRI scan. The ${confidence}% confidence level suggests this requires immediate attention. I recommend scheduling a follow-up consultation with a neurologist for further evaluation and to discuss treatment options.`
-        : `After carefully reviewing this MRI scan along with our AI analysis, I'm pleased to report that no tumor indicators were detected. The brain tissue appears healthy with normal density patterns. However, please continue with regular check-ups as recommended by your primary physician.`;
+        : isUncertainScan
+            ? `The primary model did not find a dominant tumor signal, but the secondary safety check flagged this scan as uncertain. Because low-confidence or high-variance negatives can hide subtle abnormalities, I recommend manual radiology review before treating this result as fully clear.`
+            : `After carefully reviewing this MRI scan along with our AI analysis, I'm pleased to report that no tumor indicators were detected. The brain tissue appears healthy with normal density patterns. However, please continue with regular check-ups as recommended by your primary physician.`;
     
     let html = `
         <!-- Share & Actions Bar -->
@@ -648,9 +655,9 @@ function generateResultsHTML(results) {
                         <span class="verdict-title">Senior Neuroradiologist</span>
                     </div>
                 </div>
-                <div class="verdict-stamp ${hasTumor ? 'concern' : 'clear'}">
-                    <i class="fas ${hasTumor ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
-                    <span>${hasTumor ? 'Requires Attention' : 'All Clear'}</span>
+                <div class="verdict-stamp ${needsAttention ? 'concern' : 'clear'}">
+                    <i class="fas ${needsAttention ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
+                    <span>${hasTumor ? 'Requires Attention' : (isUncertainScan ? 'Review Recommended' : 'All Clear')}</span>
                 </div>
             </div>
             <div class="verdict-content">
@@ -666,9 +673,9 @@ function generateResultsHTML(results) {
         </div>
         
         <div class="results-header">
-            <div class="result-badge ${hasTumor ? 'positive' : 'negative'}">
-                <i class="fas ${hasTumor ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
-                <span>${hasTumor ? 'Tumor Detected' : 'No Tumor Detected'}</span>
+            <div class="result-badge ${needsAttention ? 'positive' : 'negative'}">
+                <i class="fas ${needsAttention ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
+                <span>${hasTumor ? 'Tumor Detected' : (isUncertainScan ? 'Review Recommended' : 'No Tumor Detected')}</span>
             </div>
             <div class="confidence-score">${confidence}%</div>
             <div class="confidence-label">AI Confidence Score</div>
@@ -711,13 +718,13 @@ function generateResultsHTML(results) {
                 
                 <!-- Report Summary Cards -->
                 <div class="report-summary-grid">
-                    <div class="summary-card ${hasTumor ? 'alert' : 'success'}">
+                    <div class="summary-card ${needsAttention ? 'alert' : 'success'}">
                         <div class="summary-icon">
-                            <i class="fas ${hasTumor ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
+                            <i class="fas ${needsAttention ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
                         </div>
                         <div class="summary-content">
                             <span class="summary-label">Detection Status</span>
-                            <span class="summary-value">${hasTumor ? 'Abnormality Detected' : 'No Abnormality'}</span>
+                            <span class="summary-value">${hasTumor ? 'Abnormality Detected' : (isUncertainScan ? 'Manual Review Recommended' : 'No Abnormality')}</span>
                         </div>
                     </div>
                     
@@ -730,6 +737,18 @@ function generateResultsHTML(results) {
                             <span class="summary-value">${chars.confidence_score || confidence + '%'}</span>
                         </div>
                     </div>
+
+                    ${isUncertainScan ? `
+                    <div class="summary-card alert">
+                        <div class="summary-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="summary-content">
+                            <span class="summary-label">Safety Check</span>
+                            <span class="summary-value">Uncertain Scan</span>
+                        </div>
+                    </div>
+                    ` : ''}
                     
                     ${hasTumor ? `
                     <div class="summary-card" style="border-left: 4px solid ${severity.color || '#f59e0b'}">
@@ -823,11 +842,11 @@ function generateResultsHTML(results) {
             // No tumor recommendations
             html += `
                 <div class="report-details-grid">
-                    <div class="details-card full-width success-card">
+                    <div class="details-card full-width ${isUncertainScan ? '' : 'success-card'}">
                         <h4><i class="fas fa-clipboard-list"></i> Recommendations</h4>
                         <ul class="recommendations-list">
                             ${(report.recommendations || []).map(rec => `
-                                <li><i class="fas fa-check"></i> ${rec}</li>
+                                <li><i class="fas ${isUncertainScan ? 'fa-chevron-right' : 'fa-check'}"></i> ${rec}</li>
                             `).join('')}
                         </ul>
                     </div>
@@ -853,6 +872,16 @@ function generateResultsHTML(results) {
                             <span class="meta-label">Ensemble</span>
                             <span class="meta-value">${metadata.ensemble_enabled ? 'Yes' : 'No'}</span>
                         </div>
+                        <div class="metadata-item">
+                            <span class="meta-label">Safety Status</span>
+                            <span class="meta-value">${hasTumor ? 'Not Needed' : (isUncertainScan ? 'Review Recommended' : 'Clear')}</span>
+                        </div>
+                        ${safetyCheck.applied && uncertainty.tumor_probability_variance !== undefined ? `
+                        <div class="metadata-item">
+                            <span class="meta-label">Uncertainty Variance</span>
+                            <span class="meta-value">${Number(uncertainty.tumor_probability_variance).toFixed(4)}</span>
+                        </div>
+                        ` : ''}
                         <div class="metadata-item">
                             <span class="meta-label">AI Version</span>
                             <span class="meta-value">${metadata.ai_version || '2.0.0'}</span>
@@ -1901,8 +1930,8 @@ async function loadScanHistory() {
                         }
                     </div>
                     <div class="history-item-info">
-                        <div class="history-item-result ${scan.has_tumor ? 'tumor-detected' : 'no-tumor'}">
-                            ${scan.has_tumor ? (scan.severity || 'Tumor Detected') : 'No Tumor'}
+                        <div class="history-item-result ${(scan.has_tumor || scan.prediction_status === 'UNCERTAIN_SCAN') ? 'tumor-detected' : 'no-tumor'}">
+                            ${scan.has_tumor ? (scan.severity || 'Tumor Detected') : (scan.prediction_status === 'UNCERTAIN_SCAN' ? 'Review Recommended' : 'No Tumor')}
                         </div>
                         <div class="history-item-confidence">
                             Confidence: ${(scan.confidence * 100).toFixed(1)}%
