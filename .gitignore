@@ -19,3 +19,4 @@ neuroscan_data.json
 # User-uploaded scan images
 uploads/
 scan_history/
+.opencode

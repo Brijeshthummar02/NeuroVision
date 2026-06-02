@@ -599,289 +599,239 @@ function showResults(results) {
     }, 500);
 }
 
+function escapeHTML(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatReportDate(dateValue) {
+    const parsedDate = dateValue ? new Date(dateValue) : new Date();
+
+    if (Number.isNaN(parsedDate.getTime())) {
+        return 'N/A';
+    }
+
+    return parsedDate.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function renderReportMetric(label, value, icon, modifier = '') {
+    return `
+        <div class="report-metric-card ${modifier}">
+            <div class="metric-icon" aria-hidden="true">
+                <i class="fas ${icon}"></i>
+            </div>
+            <div class="metric-content">
+                <span class="metric-label">${escapeHTML(label)}</span>
+                <span class="metric-value">${escapeHTML(value || 'N/A')}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderRecommendationList(recommendations) {
+    const items = recommendations && recommendations.length
+        ? recommendations
+        : ['Consult a qualified healthcare professional for clinical interpretation.'];
+
+    return items.map((recommendation, index) => `
+        <li>
+            <span class="recommendation-index" aria-hidden="true">${index + 1}</span>
+            <span>${escapeHTML(recommendation)}</span>
+        </li>
+    `).join('');
+}
+
 function generateResultsHTML(results) {
     const hasTumor = results.has_tumor;
     const confidence = (results.confidence * 100).toFixed(1);
     const report = results.detailed_report || {};
-    
-    // Doctor's verdict based on results
-    const doctorVerdict = hasTumor 
-        ? `Based on my examination and the AI analysis, I've identified an abnormal tissue mass in the MRI scan. The ${confidence}% confidence level suggests this requires immediate attention. I recommend scheduling a follow-up consultation with a neurologist for further evaluation and to discuss treatment options.`
-        : `After carefully reviewing this MRI scan along with our AI analysis, I'm pleased to report that no tumor indicators were detected. The brain tissue appears healthy with normal density patterns. However, please continue with regular check-ups as recommended by your primary physician.`;
-    
-    let html = `
-        <!-- Share & Actions Bar -->
-        <div class="report-actions-bar">
-            <div class="report-id">
-                <i class="fas fa-file-medical-alt"></i>
-                <span>Report ID: ${report.scan_id || 'N/A'}</span>
-            </div>
-            <div class="action-buttons">
-                <button class="action-btn" type="button" onclick="shareReport('copy')" title="Copy Link">
-                    <i class="fas fa-link"></i>
-                    <span>Copy Link</span>
-                </button>
-                <button class="action-btn" type="button" onclick="shareReport('download')" title="Download Report">
-                    <i class="fas fa-download"></i>
-                    <span>Download</span>
-                </button>
-                <button class="action-btn" type="button" onclick="shareReport('email')" title="Email Report">
-                    <i class="fas fa-envelope"></i>
-                    <span>Email</span>
-                </button>
-                <button class="action-btn save-btn" type="button" onclick="saveToHistory()" title="Save to History">
-                    <i class="fas fa-bookmark"></i>
-                    <span>Save</span>
-                </button>
-            </div>
-        </div>
-        
-        <!-- Doctor's Verdict Section -->
-        <div class="doctor-verdict-section">
-            <div class="verdict-header">
-                <div class="verdict-doctor">
-                    <div class="verdict-avatar">
-                        <i class="fas fa-user-md"></i>
-                    </div>
-                    <div class="verdict-info">
-                        <span class="verdict-name">Dr. Sarah Mitchell</span>
-                        <span class="verdict-title">Senior Neuroradiologist</span>
-                    </div>
-                </div>
-                <div class="verdict-stamp ${hasTumor ? 'concern' : 'clear'}">
-                    <i class="fas ${hasTumor ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
-                    <span>${hasTumor ? 'Requires Attention' : 'All Clear'}</span>
-                </div>
-            </div>
-            <div class="verdict-content">
-                <i class="fas fa-quote-left"></i>
-                <p>${doctorVerdict}</p>
-            </div>
-            <div class="verdict-signature">
-                <div class="signature-line">
-                    <span class="signature">Dr. S. Mitchell</span>
-                    <span class="date">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="results-header">
-            <div class="result-badge ${hasTumor ? 'positive' : 'negative'}">
-                <i class="fas ${hasTumor ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
-                <span>${hasTumor ? 'Tumor Detected' : 'No Tumor Detected'}</span>
-            </div>
-            <div class="confidence-score">${confidence}%</div>
-            <div class="confidence-label">AI Confidence Score</div>
-        </div>
-        
-        <div class="results-grid">
-            <div class="result-image-card">
-                <img src="${results.original_image}" alt="Original MRI">
-                <div class="result-image-label">Original MRI Scan</div>
-            </div>
+    const chars = report.tumor_characteristics || {};
+    const severity = report.severity_details || {};
+    const metadata = report.analysis_metadata || {};
+    const size = chars.estimated_size || {};
+    const diagnosisText = hasTumor ? 'Abnormality Detected' : 'No Abnormality Detected';
+    const statusTone = hasTumor ? 'critical' : 'clear';
+    const urgency = hasTumor ? (severity.urgency || 'Clinical follow-up recommended') : 'Routine follow-up';
+    const generatedDate = formatReportDate(report.scan_date);
+    const confidenceValue = chars.confidence_score || `${confidence}%`;
+    const summaryText = hasTumor
+        ? `AI analysis identified a suspicious abnormality with ${confidenceValue} confidence. Review the findings and recommendations with a qualified clinician.`
+        : `AI analysis did not identify tumor indicators in this scan. Continue routine care and seek clinical review for symptoms or concerns.`;
+    const tumorSize = hasTumor && chars.detected
+        ? `${size.width_mm || '0'} × ${size.height_mm || '0'} mm`
+        : 'Not detected';
+    const tumorArea = hasTumor && chars.detected ? `${size.area_mm2 || '0'} mm²` : 'N/A';
+    const modelsUsed = (metadata.models_used || []).join(', ') || 'N/A';
+
+    let imageCards = `
+        <figure class="report-image-card">
+            <img src="${escapeHTML(results.original_image)}" alt="Original uploaded brain MRI scan">
+            <figcaption>Original MRI</figcaption>
+        </figure>
     `;
-    
+
     if (hasTumor && results.segmentation) {
-        html += `
-            <div class="result-image-card">
-                <img src="${results.segmentation.mask}" alt="Tumor Mask">
-                <div class="result-image-label">AI-Generated Mask</div>
-            </div>
-            
-            <div class="result-image-card">
-                <img src="${results.segmentation.overlay}" alt="Tumor Overlay">
-                <div class="result-image-label">Tumor Localization</div>
-            </div>
+        imageCards += `
+            <figure class="report-image-card">
+                <img src="${escapeHTML(results.segmentation.mask)}" alt="AI generated tumor segmentation mask">
+                <figcaption>Segmentation Mask</figcaption>
+            </figure>
+            <figure class="report-image-card">
+                <img src="${escapeHTML(results.segmentation.overlay)}" alt="MRI scan with AI tumor localization overlay">
+                <figcaption>Overlay</figcaption>
+            </figure>
         `;
-    }
-    
-    html += `</div>`;
-    
-    // Detailed Report Section
-    if (report.tumor_characteristics) {
-        const chars = report.tumor_characteristics;
-        const severity = report.severity_details || {};
-        
-        html += `
-            <div class="detailed-report-section">
-                <h3 class="report-section-title">
-                    <i class="fas fa-file-medical"></i>
-                    Comprehensive Diagnostic Report
-                </h3>
-                
-                <!-- Report Summary Cards -->
-                <div class="report-summary-grid">
-                    <div class="summary-card ${hasTumor ? 'alert' : 'success'}">
-                        <div class="summary-icon">
-                            <i class="fas ${hasTumor ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
-                        </div>
-                        <div class="summary-content">
-                            <span class="summary-label">Detection Status</span>
-                            <span class="summary-value">${hasTumor ? 'Abnormality Detected' : 'No Abnormality'}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-percentage"></i>
-                        </div>
-                        <div class="summary-content">
-                            <span class="summary-label">Confidence Score</span>
-                            <span class="summary-value">${chars.confidence_score || confidence + '%'}</span>
-                        </div>
-                    </div>
-                    
-                    ${hasTumor ? `
-                    <div class="summary-card" style="border-left: 4px solid ${severity.color || '#f59e0b'}">
-                        <div class="summary-icon" style="color: ${severity.color || '#f59e0b'}">
-                            <i class="fas fa-heartbeat"></i>
-                        </div>
-                        <div class="summary-content">
-                            <span class="summary-label">Severity Level</span>
-                            <span class="summary-value" style="color: ${severity.color || '#f59e0b'}">${severity.level || 'N/A'}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="summary-content">
-                            <span class="summary-label">Urgency</span>
-                            <span class="summary-value">${severity.urgency || 'N/A'}</span>
-                        </div>
-                    </div>
-                    ` : ''}
-                </div>
-        `;
-        
-        if (hasTumor && chars.detected) {
-            const size = chars.estimated_size || {};
-            
-            html += `
-                <!-- Tumor Characteristics -->
-                <div class="report-details-grid">
-                    <div class="details-card">
-                        <h4><i class="fas fa-ruler-combined"></i> Size & Coverage</h4>
-                        <div class="details-list">
-                            <div class="detail-row">
-                                <span class="detail-label">Coverage Area</span>
-                                <span class="detail-value">${chars.coverage_percentage || '0%'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Affected Pixels</span>
-                                <span class="detail-value">${chars.affected_pixels || '0'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Est. Width</span>
-                                <span class="detail-value">${size.width_mm || '0'} mm</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Est. Height</span>
-                                <span class="detail-value">${size.height_mm || '0'} mm</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Est. Area</span>
-                                <span class="detail-value">${size.area_mm2 || '0'} mm²</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="details-card">
-                        <h4><i class="fas fa-map-marker-alt"></i> Location & Shape</h4>
-                        <div class="details-list">
-                            <div class="detail-row">
-                                <span class="detail-label">Location</span>
-                                <span class="detail-value">${chars.location || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Position Risk</span>
-                                <span class="detail-value small">${chars.location_risk || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Shape</span>
-                                <span class="detail-value">${chars.shape_assessment || 'N/A'}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Mask Confidence</span>
-                                <span class="detail-value">${report.mask_confidence || 'N/A'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="details-card full-width">
-                        <h4><i class="fas fa-clipboard-list"></i> Clinical Recommendations</h4>
-                        <ul class="recommendations-list">
-                            ${(report.recommendations || []).map(rec => `
-                                <li><i class="fas fa-chevron-right"></i> ${rec}</li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                </div>
-            `;
-        } else {
-            // No tumor recommendations
-            html += `
-                <div class="report-details-grid">
-                    <div class="details-card full-width success-card">
-                        <h4><i class="fas fa-clipboard-list"></i> Recommendations</h4>
-                        <ul class="recommendations-list">
-                            ${(report.recommendations || []).map(rec => `
-                                <li><i class="fas fa-check"></i> ${rec}</li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Analysis Metadata
-        const metadata = report.analysis_metadata || {};
-        html += `
-                <div class="analysis-metadata">
-                    <h4><i class="fas fa-cog"></i> Analysis Details</h4>
-                    <div class="metadata-grid">
-                        <div class="metadata-item">
-                            <span class="meta-label">Models Used</span>
-                            <span class="meta-value">${(metadata.models_used || []).join(', ') || 'N/A'}</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span class="meta-label">TTA Enabled</span>
-                            <span class="meta-value">${metadata.tta_enabled ? 'Yes' : 'No'}</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span class="meta-label">Ensemble</span>
-                            <span class="meta-value">${metadata.ensemble_enabled ? 'Yes' : 'No'}</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span class="meta-label">AI Version</span>
-                            <span class="meta-value">${metadata.ai_version || '2.0.0'}</span>
-                        </div>
-                    </div>
-                </div>
+    } else {
+        imageCards += `
+            <div class="report-image-card image-placeholder" role="note">
+                <i class="fas fa-layer-group" aria-hidden="true"></i>
+                <span>No segmentation mask generated</span>
             </div>
         `;
     }
-    
-    html += `
-        <div class="disclaimer-note">
-            <i class="fas fa-info-circle"></i>
-            <p><strong>Important:</strong> ${report.disclaimer || 'This analysis is for informational purposes only and should not replace professional medical advice. Please consult with a qualified healthcare provider for proper diagnosis and treatment.'}</p>
-        </div>
-        
-        <div class="results-button-group">
-            <button class="btn btn-secondary" type="button" onclick="printReport()">
-                <i class="fas fa-print"></i>
-                Print Report
-            </button>
-            <button class="btn btn-primary btn-new-scan" id="newScanBtn" type="button">
-                <i class="fas fa-plus"></i>
-                Analyze Another Scan
-            </button>
-        </div>
+
+    return `
+        <article class="medical-report" aria-labelledby="medicalReportTitle">
+            <section class="report-executive-summary ${statusTone}" aria-labelledby="medicalReportTitle">
+                <div class="summary-main">
+                    <div class="status-kicker">
+                        <i class="fas ${hasTumor ? 'fa-exclamation-triangle' : 'fa-check-circle'}" aria-hidden="true"></i>
+                        <span>${hasTumor ? 'Needs clinical review' : 'No AI concern detected'}</span>
+                    </div>
+                    <h2 id="medicalReportTitle">${diagnosisText}</h2>
+                    <p>${escapeHTML(summaryText)}</p>
+                </div>
+                <div class="summary-data-grid" aria-label="Report summary">
+                    ${renderReportMetric('Confidence', confidenceValue, 'fa-percentage', 'primary')}
+                    ${renderReportMetric('Urgency', urgency, 'fa-clock')}
+                    ${renderReportMetric('Scan ID', report.scan_id || 'N/A', 'fa-file-medical')}
+                    ${renderReportMetric('Generated', generatedDate, 'fa-calendar-alt')}
+                </div>
+                <div class="report-actions-panel" aria-label="Report actions">
+                    <button class="report-action-btn primary" type="button" onclick="shareReport('download')" aria-label="Download or print this MRI analysis report">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                        <span>Download Report</span>
+                    </button>
+                    <button class="report-action-btn" type="button" onclick="shareReport('email')" aria-label="Email this MRI analysis report">
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <span>Email</span>
+                    </button>
+                    <button class="report-action-btn" type="button" onclick="shareReport('copy')" aria-label="Copy report share link">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                        <span>Copy Link</span>
+                    </button>
+                    <button class="report-action-btn" type="button" onclick="saveToHistory()" aria-label="Save this scan report to history">
+                        <i class="fas fa-bookmark" aria-hidden="true"></i>
+                        <span>Save</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="report-section diagnostic-images-section" aria-labelledby="diagnosticImagesTitle">
+                <div class="section-heading">
+                    <span class="section-icon" aria-hidden="true"><i class="fas fa-images"></i></span>
+                    <div>
+                        <h3 id="diagnosticImagesTitle">Diagnostic Images</h3>
+                        <p>Original scan and AI-generated visualization outputs.</p>
+                    </div>
+                </div>
+                <div class="report-images-grid">
+                    ${imageCards}
+                </div>
+            </section>
+
+            <section class="report-section findings-section" aria-labelledby="keyFindingsTitle">
+                <div class="section-heading">
+                    <span class="section-icon" aria-hidden="true"><i class="fas fa-stethoscope"></i></span>
+                    <div>
+                        <h3 id="keyFindingsTitle">Key Findings</h3>
+                        <p>AI-estimated characteristics for clinical review.</p>
+                    </div>
+                </div>
+                <div class="findings-grid">
+                    ${renderReportMetric('Tumor Size', tumorSize, 'fa-ruler-combined')}
+                    ${renderReportMetric('Tumor Area', tumorArea, 'fa-expand')}
+                    ${renderReportMetric('Coverage', chars.coverage_percentage || '0.00%', 'fa-chart-pie')}
+                    ${renderReportMetric('Location', hasTumor ? (chars.location || 'N/A') : 'No abnormal mass', 'fa-map-marker-alt')}
+                    ${renderReportMetric('Shape', hasTumor ? (chars.shape_assessment || 'N/A') : 'N/A', 'fa-draw-polygon')}
+                    ${renderReportMetric('Detection Confidence', confidenceValue, 'fa-brain')}
+                    ${renderReportMetric('Mask Confidence', report.mask_confidence || 'N/A', 'fa-crosshairs')}
+                    ${renderReportMetric('Position Risk', hasTumor ? (chars.location_risk || 'N/A') : 'N/A', 'fa-shield-alt')}
+                </div>
+            </section>
+
+            <section class="report-section recommendations-section" aria-labelledby="recommendationsTitle">
+                <div class="section-heading">
+                    <span class="section-icon" aria-hidden="true"><i class="fas fa-clipboard-check"></i></span>
+                    <div>
+                        <h3 id="recommendationsTitle">Recommendations</h3>
+                        <p>Priority actions to discuss with a qualified healthcare professional.</p>
+                    </div>
+                </div>
+                <ol class="recommendations-list">
+                    ${renderRecommendationList(report.recommendations || [])}
+                </ol>
+            </section>
+
+            <section class="report-section metadata-section" aria-labelledby="metadataTitle">
+                <div class="section-heading compact">
+                    <span class="section-icon" aria-hidden="true"><i class="fas fa-sliders"></i></span>
+                    <div>
+                        <h3 id="metadataTitle">Report Metadata</h3>
+                        <p>Model and processing details.</p>
+                    </div>
+                </div>
+                <dl class="metadata-grid">
+                    <div class="metadata-item">
+                        <dt>Model</dt>
+                        <dd>${escapeHTML(modelsUsed)}</dd>
+                    </div>
+                    <div class="metadata-item">
+                        <dt>Version</dt>
+                        <dd>${escapeHTML(metadata.ai_version || '2.0.0')}</dd>
+                    </div>
+                    <div class="metadata-item">
+                        <dt>Resolution</dt>
+                        <dd>${escapeHTML(report.image_resolution || '256 × 256 pixels')}</dd>
+                    </div>
+                    <div class="metadata-item">
+                        <dt>Processing Time</dt>
+                        <dd>${escapeHTML(metadata.processing_time || 'Real-time')}</dd>
+                    </div>
+                    <div class="metadata-item">
+                        <dt>TTA Enabled</dt>
+                        <dd>${metadata.tta_enabled ? 'Yes' : 'No'}</dd>
+                    </div>
+                    <div class="metadata-item">
+                        <dt>Ensemble</dt>
+                        <dd>${metadata.ensemble_enabled ? 'Yes' : 'No'}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <aside class="disclaimer-note" aria-label="Medical disclaimer">
+                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                <p><strong>Important:</strong> ${escapeHTML(report.disclaimer || 'This analysis is for informational purposes only and should not replace professional medical advice. Please consult with a qualified healthcare provider for proper diagnosis and treatment.')}</p>
+            </aside>
+
+            <div class="results-button-group">
+                <button class="btn btn-primary btn-new-scan" id="newScanBtn" type="button">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    <span>Analyze Another Scan</span>
+                </button>
+            </div>
+        </article>
     `;
-    
-    return html;
 }
 
 // ==================== Share & Save Functions ====================
@@ -939,7 +889,7 @@ function downloadReportAsPDF() {
                     font-family: Arial, sans-serif;
                     background: white;
                 }
-                .report-actions-bar { display: none; }
+                .report-actions-panel { display: none; }
                 .results-button-group { display: none; }
                 @media print {
                     .no-print { display: none; }
