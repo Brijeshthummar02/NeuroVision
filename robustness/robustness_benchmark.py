@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import cv2
 import json
 import numpy as np
@@ -11,22 +11,29 @@ from corruptions import (
     add_compression_artifacts
 )
 
+# Base project directory
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 # MRI image path
 DATASET_PATH = "MRI Datasets"
 
 # Output directory
-OUTPUT_DIR = "benchmark_outputs"
+OUTPUT_DIR = BASE_DIR / "benchmark_outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Reports directory
+REPORTS_DIR = BASE_DIR / "reports"
+REPORTS_DIR.mkdir(exist_ok=True)
+
+
 def simulate_prediction(image):
     """
     Temporary mock prediction function.
     Later this can be replaced with real model inference.
     """
 
-    # Simulate confidence using image quality
     variance = np.var(image)
-
     mean_intensity = np.mean(image)
 
     quality_score = (
@@ -50,9 +57,9 @@ def evaluate_corruption(name, corrupted_image):
     Evaluate one corrupted MRI image.
     """
 
-    output_path = f"{OUTPUT_DIR}/{name}.jpg"
+    output_path = OUTPUT_DIR / f"{name}.jpg"
 
-    cv2.imwrite(output_path, corrupted_image)
+    cv2.imwrite(str(output_path), corrupted_image)
 
     result = simulate_prediction(corrupted_image)
 
@@ -145,7 +152,7 @@ for corruption, values in summary.items():
 os.makedirs("robustness/reports", exist_ok=True)
 report_path = "robustness/reports/robustness_report.json"
 
-with open(report_path, "w") as f:
+with open(report_path, "w", encoding="utf-8") as f:
     json.dump(final_results, f, indent=4)
 
 print(final_results)

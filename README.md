@@ -8,6 +8,7 @@ Brain tumor detection and segmentation from MRI scans using a two-stage deep lea
 ![License](https://img.shields.io/badge/License-MIT-brightgreen)
 ![Accuracy](https://img.shields.io/badge/Accuracy-99%25+-success)
 ![Dice](https://img.shields.io/badge/Dice_Score-0.94+-blue)
+[![codecov](https://codecov.io/github/Brijeshthummar02/NeuroVision/graph/badge.svg?token=EW47CHMM7R)](https://codecov.io/github/Brijeshthummar02/NeuroVision)
 
 > ⚠️ **Research use only.** This project is not intended for clinical diagnosis. It has not undergone FDA/CE validation or regulatory review.
 
@@ -202,6 +203,8 @@ All augmentations are applied during training only, tuned specifically for MRI c
 | Class balance | ~50% tumor / ~50% healthy |
 
 ### Download
+
+📘 For the complete project setup, troubleshooting, and testing instructions, please refer to `SETUP.md`.
 
 The dataset and pre-trained model weights are hosted on Google Drive. Pick whichever works for you:
 
