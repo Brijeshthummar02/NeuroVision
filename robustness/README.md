@@ -34,18 +34,24 @@ Run robustness benchmark:
 ```bash
 python robustness_benchmark.py
 ```
-## Benchmark Results
+## Dataset Benchmark
 
-| Corruption | Confidence Drop |
-|------------|----------------|
-| Gaussian Noise | 0.0599 |
-| Blur | 0.0132 |
-| Brightness | 0.0013 |
-| Low Resolution | 0.0117 |
-| Compression | 0.0144 |
+Total MRI Scans Evaluated: 3954
 
-### Observations
+Corruptions Evaluated:
+- Gaussian Noise
+- Blur
+- Brightness
+- Low Resolution
+- Compression
+## Outputs Generated:
 
-- Gaussian noise produced the largest confidence degradation.
-- Brightness changes had minimal impact.
-- The benchmark demonstrates how MRI model confidence changes under image corruption.
+- robustness_report.json
+- robustness_plot.png
+- model_comparison.md
+
+## Observations
+- Benchmarking was performed across the complete MRI dataset.
+- All MRI scans were evaluated under multiple corruption conditions.
+- The framework measures confidence degradation caused by common MRI image corruptions.
+- Results can be used as a baseline for future robustness comparisons and model improvements.
