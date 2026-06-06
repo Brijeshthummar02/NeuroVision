@@ -1615,6 +1615,23 @@ function createAuthModal() {
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
+                    <!-- Strength indicator container -->
+                    <div id="password-strength-container" class="password-strength-container" style="display: none;">
+                        <div class="strength-bars">
+                            <div class="strength-bar"></div>
+                            <div class="strength-bar"></div>
+                            <div class="strength-bar"></div>
+                            <div class="strength-bar"></div>
+                            <div class="strength-bar"></div>
+                        </div>
+                        <div class="strength-text-wrapper">
+                            <span class="strength-label-prefix">Strength:</span>
+                            <span id="strength-label" class="strength-label"></span>
+                        </div>
+                        <p id="strength-hint" class="strength-hint" style="display: none;">
+                            Use 8+ characters, uppercase, numbers & symbols.
+                        </p>
+                    </div>
                 </div>
                 
                 <div class="auth-input-group">
@@ -1641,7 +1658,69 @@ function createAuthModal() {
         </div>
     `;
     
+    // Add event listener for password strength validation
+    const signupPasswordInput = modal.querySelector('#signupPassword');
+    if (signupPasswordInput) {
+        signupPasswordInput.addEventListener('input', function() {
+            updatePasswordStrength(this.value);
+        });
+    }
+    
     return modal;
+}
+
+function updatePasswordStrength(password) {
+    const container = document.getElementById('password-strength-container');
+    const label = document.getElementById('strength-label');
+    const hint = document.getElementById('strength-hint');
+    const bars = document.querySelectorAll('.strength-bar');
+    
+    if (!password) {
+        if (container) container.style.display = 'none';
+        return;
+    }
+    
+    if (container) container.style.display = 'block';
+    
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    
+    score = Math.min(score, 4);
+    
+    const levels = [
+        { label: "Too weak", color: "#ef4444", class: "too-weak" },
+        { label: "Weak", color: "#fb923c", class: "weak" },
+        { label: "Fair", color: "#facc15", class: "fair" },
+        { label: "Strong", color: "#3b82f6", class: "strong" },
+        { label: "Very strong", color: "#22c55e", class: "very-strong" }
+    ];
+    
+    const currentLevel = levels[score];
+    if (label) {
+        label.textContent = currentLevel.label;
+        label.style.color = currentLevel.color;
+    }
+    
+    // Update bars
+    bars.forEach((bar, index) => {
+        bar.className = 'strength-bar'; // Reset class
+        if (index <= score) {
+            bar.classList.add(currentLevel.class);
+        }
+    });
+    
+    // Show/hide hint
+    if (hint) {
+        if (score <= 1) {
+            hint.style.display = 'block';
+        } else {
+            hint.style.display = 'none';
+        }
+    }
 }
 
 function closeAuthModal() {
