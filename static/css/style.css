@@ -1,4 +1,4 @@
-/* NeuroScan AI - Custom Styles */
+﻿/* NeuroScan AI - Custom Styles */
 
 /* === Color Palette === */
 :root {
@@ -2286,11 +2286,17 @@ section {
     align-items: flex-end;
 }
 
-.bottleneck-block {
-    width: 28px;
-    height: 25px;
-    background: linear-gradient(180deg, #f59e0b, #fbbf24);
-    border-radius: 0.25rem;
+.bottleneck-block-resnet {
+   background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    text-align: center;
+    color: white;
+    position: relative;
+    box-shadow: 
+        0 10px 40px rgba(99, 102, 241, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    overflow: hidden;
 }
 
 .skip-connections {
@@ -2924,8 +2930,7 @@ section {
     }
 }
 
-/* ==========================================================
-   ADVANCED CNN ARCHITECTURE PIPELINE V2 - REDESIGNED
+/* ===================================================   ADVANCED CNN ARCHITECTURE PIPELINE V2 - REDESIGNED
    ========================================================== */
 
 /* Section Base */
@@ -9958,8 +9963,7 @@ section {
     }
 }
 
-/* ============================================================
-   RESUNET DEEP DIVE SECTION STYLES
+/* =====================================================   RESUNET DEEP DIVE SECTION STYLES
    ============================================================ */
 
 /* ResUNet Deep Dive Container */
@@ -10884,8 +10888,9 @@ section {
     }
 }
 
-/* ============================================
-   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
+/* =====================================   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
+   ============================================ */
+/* =====================================   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
    ============================================ */
 
 .unet-architecture-visual-v2 {
@@ -10932,8 +10937,8 @@ section {
 }
 
 .input-icon-wrap {
-    width: 50px;
-    height: 50px;
+    width: 100px;
+    height: 100px;
     background: linear-gradient(135deg, #0d9488, #14b8a6);
     border-radius: 12px;
     display: flex;
@@ -10962,28 +10967,79 @@ section {
 }
 
 /* Flow Connector */
+
 .flow-connector {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    height: 40px;
+    position: relative;
+    height: 60px;
+    width: 100%;
+    margin: 0.5rem 0;
 }
 
 .flow-connector.vertical {
     position: relative;
 }
 
-.connector-line {
+.flow-connector .connector-line {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     width: 3px;
     height: 100%;
     background: linear-gradient(180deg, #1e3a5f, #0d9488);
     border-radius: 3px;
 }
 
-.connector-arrow {
+.unet-input-section .flow-connector .connector-line {
+    left: 250px;
+    transform: rotate(270deg);
+    width: 30%;
+    height: 200%;
+    background: transparent;
+    border-left: 6px solid #334eac;
+    border-bottom: 6px solid #334eac;
+    border-bottom-left-radius: 40px;
+}
+
+.unet-input-section .flow-connector .connector-arrow {
+    position: absolute;
+    bottom: -181px;
+    left: 330px;
+    color: #334eac;
+    font-size: 2rem;
+    transform: rotate(90deg);
+    margin-top: 0;
+    z-index: 2;
+}
+
+
+.unet-output-section .flow-connector {
+    position: relative;
+}
+
+.unet-output-section .flow-connector .connector-line {
+    right: 200px;
+    left: 300px;
+    bottom: 220px;
+    transform: none;
+    width: 100%;
+    height: 800%;
+    transform: rotate(-90deg);
+    background: transparent;
+    border-left: 6px solid #0d9488;
+    border-bottom: 6px solid #0d9488;
+    border-bottom-left-radius: 35px;
+    border-bottom-right-radius: 12px;
+}
+
+.unet-output-section .flow-connector .connector-arrow {
+    position: absolute;
+    bottom: -90px;
+    right: 370px;
     color: #0d9488;
-    font-size: 0.8rem;
-    margin-top: -5px;
+    font-size: 2rem;
+    transform: rotate(85deg);
+    margin-top: 0;
+    z-index: 2;
 }
 
 /* U-Shape Container */
@@ -11203,50 +11259,9 @@ section {
     border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
-/* Skip Connectors */
+/* Skip Connector stubs — hidden, real lines drawn by JS in SVG */
 .skip-connector {
-    position: absolute;
-    right: -2rem;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    z-index: 5;
-}
-
-.skip-line {
-    width: 30px;
-    height: 3px;
-    background: linear-gradient(90deg, #0d9488, #14b8a6);
-    border-radius: 3px;
-    position: relative;
-}
-
-.skip-line::after {
-    content: '';
-    position: absolute;
-    right: -4px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 6px solid #14b8a6;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-}
-
-.skip-label {
-    position: absolute;
-    top: -18px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.55rem;
-    font-weight: 700;
-    color: #0d9488;
-    white-space: nowrap;
-    background: rgba(240, 253, 250, 0.9);
-    padding: 0.15rem 0.35rem;
-    border-radius: 4px;
+    display: none;
 }
 
 /* Skip Receiver */
@@ -11296,65 +11311,129 @@ section {
     font-size: 0.8rem;
 }
 
-/* Bridge Column */
+/* Bridge Column - Enhanced with direction arrows */
 .bridge-column {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
     align-items: center;
     position: relative;
-    min-width: 180px;
+    min-width: 280px;
+    width: auto;
+    gap: 0;
 }
 
-.bridge-connector-top,
-.bridge-connector-bottom {
-    height: 60px;
+.bridge-connector-top {
+    height: 65px;
     width: 100%;
     position: relative;
+    flex-shrink: 0;
+}
+
+.bridge-connector-bottom {
+    height: 65px;
+    width: 100%;
+    position: relative;
+    flex-shrink: 0;
 }
 
 .connector-curve {
     position: absolute;
-    width: 50%;
     height: 100%;
 }
 
+
 .connector-curve.left {
-    left: 0;
+    left: -225px;
+    bottom: -580px;
     border-left: 3px solid #334eac;
     border-bottom: 3px solid #334eac;
-    border-bottom-left-radius: 20px;
+    border-bottom-left-radius: 40px;
+    width: 75%;
+}
+
+
+.connector-curve.left::after {
+    content: '>';
+    position: absolute;
+    bottom: -25px;
+    right: -12px;
+    color: #334eac;
+    font-size:2rem;
+    font-weight: bold;
+    background: #f1f5f9;
+    transform: rotate(0deg);
+    border-radius: 2px;
+    padding: 0 3px;
 }
 
 .connector-curve.right {
-    right: 0;
+    right: -210px;
+    top: -340px;
     border-right: 3px solid #0d9488;
-    border-top: 3px solid #0d9488;
-    border-top-right-radius: 20px;
+    border-bottom: 3px solid #0d9488;
+    border-bottom-right-radius: 40px;
+    width: 75%;
 }
 
-/* Bottleneck Block */
+
+.connector-curve.right::after {
+    content: '>';
+    position: absolute;
+    bottom: 21px;
+    right: -14px;
+    color: #0d9488;
+    font-size: 2rem;
+    font-weight: bold;
+    background: #f1f5f9;
+    transform: rotate(-90deg);
+    border-radius: 2px;
+    padding: 0 3px;
+}
+
+/* =====================================   BOTTLENECK BLOCK - FIXED (NO HUGE MARGIN)
+   ============================================ */
 .bottleneck-block {
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    border-radius: 1.25rem;
-    padding: 1.25rem;
+    border-radius: 1rem;
+    padding: 1.25rem 1.25rem;
     text-align: center;
     color: white;
     position: relative;
     box-shadow: 
-        0 10px 40px rgba(99, 102, 241, 0.35),
-        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    overflow: hidden;
+        0 10px 40px rgba(99, 102, 241, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+    overflow: visible;
+    transition: all 0.2s ease;
+    min-width: 260px;
+    width: 100%;
+    min-height: 360px;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex-shrink: 0;
+    /* REMOVED the huge margin-top: 600px */
+    margin: 0;
+    margin-top: 500px;
 }
 
+.bottleneck-block:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 45px rgba(99, 102, 241, 0.55);
+}
+/* Fixed glow animation */
 .bottleneck-glow {
     position: absolute;
     top: -50%;
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
-    animation: bottleneck-rotate 10s linear infinite;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
+    animation: bottleneck-rotate 12s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
 }
 
 @keyframes bottleneck-rotate {
@@ -11362,57 +11441,97 @@ section {
     100% { transform: rotate(360deg); }
 }
 
+/* Header */
 .bottleneck-header {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: 700;
-    font-size: 0.9rem;
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+    font-weight: 800;
+    font-size: 1rem;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    letter-spacing: -0.2px;
 }
 
+.bottleneck-header svg,
+.bottleneck-header i {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    font-size: 0.95rem;
+}
+
+/* Dimension badge */
 .bottleneck-dims {
-    font-family: 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 0.75rem;
-    opacity: 0.9;
-    background: rgba(255, 255, 255, 0.15);
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    margin-bottom: 0.75rem;
-    display: inline-block;
+    font-weight: 700;
+    opacity: 0.95;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    padding: 0.35rem 1rem;
+    border-radius: 40px;
+    margin-bottom: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    letter-spacing: 0.3px;
 }
 
+/* Operation chips container */
 .bottleneck-ops {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    width: 100%;
 }
 
 .op-mini {
-    background: rgba(255, 255, 255, 0.15);
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    font-size: 0.6rem;
-    font-weight: 600;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(4px);
+    padding: 0.4rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    transition: all 0.2s ease;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
+.op-mini:hover {
+    background: rgba(255, 255, 255, 0.28);
+    transform: translateX(3px);
+}
+
+/* Badge section */
 .bottleneck-badge {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    font-size: 0.6rem;
-    opacity: 0.85;
+    gap: 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 700;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.35rem 1rem;
+    border-radius: 30px;
+    width: fit-content;
+    margin: 0 auto;
+    backdrop-filter: blur(4px);
+}
+
+.bottleneck-badge i {
+    font-size: 0.65rem;
+    opacity: 0.9;
 }
 
 /* Output Section */
@@ -11424,7 +11543,15 @@ section {
 }
 
 .flow-connector.vertical.up {
-    flex-direction: column-reverse;
+    flex-direction: column;
+}
+
+.flow-connector.vertical.up .connector-arrow {
+    order: 1;
+}
+
+.flow-connector.vertical.up .connector-line {
+    order: 2;
 }
 
 .final-conv-layer {
@@ -11581,7 +11708,7 @@ section {
 }
 
 .legend-color-v2.skip-color-v2 {
-    background: linear-gradient(135deg, #14b8a6, #2dd4bf);
+    background: linear-gradient(135deg, #E3F7F4, #2dd4bf);
     border: 2px solid #0d9488;
 }
 
@@ -11595,16 +11722,27 @@ section {
     border: 1px solid rgba(236, 72, 153, 0.3);
 }
 
-/* SVG Skip Connections */
+/* SVG Skip Connections — sized and drawn by JS */
 .skip-connections-svg {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: -8px;
+    left: 30px;
+    width: 70%;
+    height: 60%;
     pointer-events: none;
-    z-index: 1;
+    z-index: 20;
 }
+
+.unet-ushape-container {
+    position: relative;
+}
+
+.skip-drawn {
+    pointer-events: none;
+}
+
+
+
 
 /* Responsive Adjustments for U-Net V2 */
 @media (max-width: 992px) {
@@ -11612,39 +11750,67 @@ section {
         grid-template-columns: 1fr;
         gap: 2rem;
     }
-    
+
     .encoder-column,
     .decoder-column {
         padding: 0;
     }
-    
+
     .bridge-column {
         order: 2;
         flex-direction: row;
         justify-content: center;
         min-width: auto;
     }
-    
+
     .encoder-column {
         order: 1;
     }
-    
+
     .decoder-column {
         order: 3;
     }
-    
-    .skip-connector,
+
     .skip-receiver {
         display: none;
     }
-    
+
     .bridge-connector-top,
     .bridge-connector-bottom {
         display: none;
     }
-    
+
     .decoder-block-v2 {
         flex-direction: row;
+    }
+
+    .skip-connections-svg {
+        display: none;
+    }
+    
+    .bottleneck-block {
+        min-width: 280px;
+        min-height: 340px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    
+    .bottleneck-header {
+        font-size: 0.9rem;
+    }
+    
+    .bottleneck-dims {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.9rem;
+    }
+    
+    .op-mini {
+        font-size: 0.65rem;
+        padding: 0.35rem 0.6rem;
+    }
+    
+    .bottleneck-badge {
+        font-size: 0.65rem;
     }
 }
 
@@ -11652,25 +11818,60 @@ section {
     .unet-architecture-visual-v2 {
         padding: 1rem;
     }
-    
+
     .unet-input-node,
     .unet-output-node {
         padding: 0.75rem 1rem;
     }
-    
+
     .bottleneck-block {
-        padding: 1rem;
+        padding: 0.85rem;
+        min-height: 310px;
+        min-width: auto;
+        width: 100%;
+        margin: 0.35rem 0;
     }
     
+    .bottleneck-header {
+        font-size: 0.85rem;
+        gap: 0.4rem;
+        margin-bottom: 0.6rem;
+    }
+    
+    .bottleneck-header i {
+        font-size: 0.8rem;
+    }
+    
+    .bottleneck-dims {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.7rem;
+        margin-bottom: 0.7rem;
+    }
+    
+    .bottleneck-ops {
+        gap: 0.4rem;
+        margin-bottom: 0.7rem;
+    }
+    
+    .op-mini {
+        font-size: 0.6rem;
+        padding: 0.3rem 0.5rem;
+    }
+    
+    .bottleneck-badge {
+        font-size: 0.6rem;
+        gap: 0.35rem;
+        padding: 0.3rem 0.7rem;
+    }
+
     .unet-block {
         padding: 0.5rem;
     }
-    
+
     .legend-items-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 }
-
 /* ======================================================== */
 /* SCAN SECTION V2 - IMMERSIVE DOCTOR CONSULTATION         */
 /* ======================================================== */
@@ -11952,16 +12153,21 @@ section {
 .scan-main-card {
     background: white;
     border-radius: 1.5rem;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 10px 50px rgba(0, 0, 0, 0.08);
     overflow: hidden;
     border: 1px solid rgba(51, 78, 172, 0.1);
+    min-height: clamp(720px, 78vh, 920px);
+    width: 100%;
 }
 
 /* Upload State */
 .upload-state {
     display: grid;
-    grid-template-columns: 1fr 1.2fr;
-    min-height: 600px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    min-height: clamp(600px, 70vh, 760px);
+    align-items: stretch;
 }
 
 /* Doctor Intro Panel */
@@ -11971,6 +12177,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 2rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .doctor-profile-card {
@@ -12165,6 +12373,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .upload-header {
@@ -12442,6 +12652,8 @@ section {
 .preview-image-container {
     position: relative;
     padding: 1rem;
+    max-height: 420px;
+    overflow: hidden;
 }
 
 .preview-image-container img {
@@ -12449,6 +12661,8 @@ section {
     height: auto;
     border-radius: 0.5rem;
     display: block;
+    max-height: 380px;
+    object-fit: contain;
 }
 
 .preview-overlay {
@@ -12551,8 +12765,9 @@ section {
 
 .scanning-room {
     display: grid;
-    grid-template-columns: 1.3fr 1fr;
-    min-height: 600px;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    min-height: clamp(600px, 70vh, 760px);
+    align-items: stretch;
 }
 
 /* MRI Machine Panel */
@@ -12562,6 +12777,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .machine-header {
@@ -12756,6 +12973,8 @@ section {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    min-height: 0;
 }
 
 .dashboard-header h3 {
@@ -13349,20 +13568,24 @@ section {
 /* ============================================= */
 
 @media (max-width: 1024px) {
+    .scan-main-card {
+        min-height: clamp(720px, 84vh, 980px);
+    }
+
     .upload-state {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
     }
     
     .doctor-intro-panel {
-        order: 2;
+        order: 0;
     }
     
     .upload-panel {
-        order: 1;
+        order: 0;
     }
     
     .scanning-room {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
     }
     
     .mri-machine-panel {
@@ -14493,4 +14716,164 @@ section {
     margin-top: 0.35rem;
     margin-bottom: 0;
     line-height: 1.4;
+}
+/* =====================================   FIXED U-NET ARCHITECTURE V3 - ATTENTION RESUNET
+   ============================================ */
+
+.segmentation-visual-v3 {
+    padding: 1rem;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-radius: 1rem;
+    position: relative;
+}
+
+.model-header-badge {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #1e3a5f, #0d9488);
+    border-radius: 30px;
+    display: inline-block;
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.model-header-badge .model-name {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.5px;
+}
+
+.model-header-badge .model-features {
+    display: block;
+    font-size: 0.7rem;
+    color: #ccfbf1;
+}
+
+.unet-container-v3 {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+}
+
+.unet-canvas {
+    width: 100%;
+    height: auto;
+    background: transparent;
+    border-radius: 0.5rem;
+}
+
+/* Transform section */
+.seg-transform-v3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+.seg-transform-v3 .input-scan,
+.seg-transform-v3 .output-mask {
+    text-align: center;
+}
+
+.seg-transform-v3 .input-scan .scan-placeholder,
+.seg-transform-v3 .output-mask .mask-placeholder {
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(135deg, var(--galaxy), var(--planetary));
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    position: relative;
+    margin-bottom: 0.5rem;
+}
+
+.seg-transform-v3 .output-mask .mask-placeholder {
+    background: linear-gradient(135deg, #0d9488, #14b8a6);
+}
+
+.seg-transform-v3 .input-scan span,
+.seg-transform-v3 .output-mask span {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--galaxy);
+}
+
+.seg-transform-v3 .input-scan small,
+.seg-transform-v3 .output-mask small {
+    font-size: 0.6rem;
+    color: var(--gray-500);
+}
+
+.seg-transform-v3 .transform-arrow {
+    text-align: center;
+}
+
+.seg-transform-v3 .transform-arrow i {
+    font-size: 1.5rem;
+    color: var(--universe);
+    display: block;
+}
+
+.seg-transform-v3 .transform-arrow span {
+    font-size: 0.6rem;
+    color: var(--gray-500);
+    display: block;
+    margin-top: 0.25rem;
+}
+
+/* Feature badges */
+.feature-badges-v3 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.feature-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    background: rgba(13, 148, 136, 0.1);
+    color: #0d9488;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+.feature-badge i {
+    font-size: 0.6rem;
+}
+
+.model-stats-v2 {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .unet-canvas {
+        min-width: 700px;
+    }
+    
+    .seg-transform-v3 {
+        flex-direction: column;
+    }
+    
+    .seg-transform-v3 .transform-arrow i {
+        transform: rotate(90deg);
+    }
 }

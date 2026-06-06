@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import cv2
 import json
 import numpy as np
@@ -11,13 +11,19 @@ from corruptions import (
     add_compression_artifacts
 )
 
+# Base project directory
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 # MRI image path
-IMAGE_PATH = "../images/segmentation_predictions.png"
+IMAGE_PATH = BASE_DIR / "images" / "segmentation_predictions.png"
 
 # Output directory
-OUTPUT_DIR = "benchmark_outputs"
+OUTPUT_DIR = BASE_DIR / "benchmark_outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Reports directory
+REPORTS_DIR = BASE_DIR / "reports"
+REPORTS_DIR.mkdir(exist_ok=True)
 
 
 def simulate_prediction(image):
@@ -26,9 +32,7 @@ def simulate_prediction(image):
     Later this can be replaced with real model inference.
     """
 
-    # Simulate confidence using image quality
     variance = np.var(image)
-
     mean_intensity = np.mean(image)
 
     quality_score = (
@@ -52,9 +56,9 @@ def evaluate_corruption(name, corrupted_image):
     Evaluate one corrupted MRI image.
     """
 
-    output_path = f"{OUTPUT_DIR}/{name}.jpg"
+    output_path = OUTPUT_DIR / f"{name}.jpg"
 
-    cv2.imwrite(output_path, corrupted_image)
+    cv2.imwrite(str(output_path), corrupted_image)
 
     result = simulate_prediction(corrupted_image)
 
@@ -65,10 +69,10 @@ def evaluate_corruption(name, corrupted_image):
 
 
 # Load original MRI image
-image = cv2.imread(IMAGE_PATH)
+image = cv2.imread(str(IMAGE_PATH))
 
 if image is None:
-    raise ValueError("Could not load MRI image")
+    raise ValueError(f"Could not load MRI image: {IMAGE_PATH}")
 
 
 print("\n===== CLEAN MRI TEST =====")
@@ -76,7 +80,6 @@ print("\n===== CLEAN MRI TEST =====")
 clean_result = simulate_prediction(image)
 
 print("Clean Confidence:", clean_result["confidence"])
-
 
 print("\n===== ROBUSTNESS TESTING =====")
 
@@ -122,7 +125,6 @@ results.append(
     )
 )
 
-
 print("\n===== RESULTS =====")
 
 final_results = []
@@ -134,8 +136,8 @@ for result in results:
     )
 
     robustness_score = (
-    result["confidence"]
-    / clean_result["confidence"]
+        result["confidence"]
+        / clean_result["confidence"]
     )
 
     benchmark_result = {
@@ -149,17 +151,17 @@ for result in results:
     final_results.append(benchmark_result)
 
     print(f"""
-        Corruption: {result['corruption']}
-        Clean Confidence: {clean_result['confidence']}
-        Corrupted Confidence: {result['confidence']}
-        Confidence Drop: {round(confidence_drop, 4)}
-    """)
+Corruption: {result['corruption']}
+Clean Confidence: {clean_result['confidence']}
+Corrupted Confidence: {result['confidence']}
+Confidence Drop: {round(confidence_drop, 4)}
+""")
 
 
 # Save report
-report_path = "reports/robustness_report.json"
+report_path = REPORTS_DIR / "robustness_report.json"
 
-with open(report_path, "w") as f:
+with open(report_path, "w", encoding="utf-8") as f:
     json.dump(final_results, f, indent=4)
 
 print(f"\nReport saved to: {report_path}")

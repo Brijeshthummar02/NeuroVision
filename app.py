@@ -66,7 +66,9 @@ from utilities import (
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+# Restrict CORS to explicit origins — set CORS_ORIGINS in .env (comma-separated)
+_cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000').split(',')
+CORS(app, supports_credentials=True, origins=[o.strip() for o in _cors_origins])
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 # Configuration
@@ -1506,15 +1508,28 @@ if __name__ == '__main__':
         print(f"✓ Classification ensemble: {len(classification_models)} model(s)")
         print(f"✓ Segmentation ensemble: {len(segmentation_models)} model(s)")
         print("\n🚀 Starting Flask server...")
+        print("📍 Access the application at: http://localhost:5000")
+        print("📊 API Health Check: http://localhost:5000/api/health")
+        print("⚙️  API Configuration: http://localhost:5000/api/config")
+        print("🔐 Authentication: http://localhost:5000/api/auth/status")
+        print("🗄️  Database: MongoDB")
+        print("☁️  Image Storage: Cloudinary")
+        print("=" * 70)
+        _debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+        _host = os.getenv('FLASK_HOST', '127.0.0.1')  # Bind to localhost only by default
+        _port = int(os.getenv('FLASK_PORT', '5000'))
+        app.run(debug=_debug, host=_host, port=_port)
     else:
         print("\n⚠ Models failed to load. Starting Flask server in limited mode.")
         print("⚠ Some inference and scan features may be unavailable until model files are added.")
-
-    print("📍 Access the application at: http://localhost:5000")
-    print("📊 API Health Check: http://localhost:5000/api/health")
-    print("⚙️  API Configuration: http://localhost:5000/api/config")
-    print("🔐 Authentication: http://localhost:5000/api/auth/status")
-    print("🗄️  Database: MongoDB")
-    print("☁️  Image Storage: Cloudinary")
-    print("=" * 70)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+        print("📍 Access the application at: http://localhost:5000")
+        print("📊 API Health Check: http://localhost:5000/api/health")
+        print("⚙️  API Configuration: http://localhost:5000/api/config")
+        print("🔐 Authentication: http://localhost:5000/api/auth/status")
+        print("🗄️  Database: MongoDB")
+        print("☁️  Image Storage: Cloudinary")
+        print("=" * 70)
+        _debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+        _host = os.getenv('FLASK_HOST', '127.0.0.1')
+        _port = int(os.getenv('FLASK_PORT', '5000'))
+        app.run(debug=_debug, host=_host, port=_port)
