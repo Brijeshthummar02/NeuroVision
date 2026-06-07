@@ -4423,10 +4423,42 @@ section {
 }
 
 /* ResNet-50 redesigned architecture map */
+.resnet-architecture-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1.15rem;
+}
+
+.resnet-architecture-summary div {
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(51, 78, 172, 0.16);
+    border-radius: 1rem;
+    background: linear-gradient(135deg, rgba(255,255,255,0.94), rgba(238,246,255,0.82));
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.resnet-architecture-summary span {
+    display: block;
+    margin-bottom: 0.32rem;
+    color: var(--gray-500);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.resnet-architecture-summary strong {
+    display: block;
+    color: var(--galaxy);
+    font-size: 0.88rem;
+    line-height: 1.35;
+}
+
 .resnet-flow-redesign {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(9, minmax(190px, 1fr));
+    grid-template-columns: repeat(9, minmax(215px, 1fr));
     align-items: stretch;
     gap: 1rem;
     overflow-x: auto;
@@ -4453,7 +4485,7 @@ section {
 .resnet-stage-card {
     position: relative;
     z-index: 1;
-    min-height: 320px;
+    min-height: 380px;
     padding: 1rem;
     display: flex;
     flex-direction: column;
@@ -4463,6 +4495,17 @@ section {
     border-radius: 1.25rem;
     box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.resnet-stage-card::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    top: 0;
+    height: 4px;
+    border-radius: 0 0 999px 999px;
+    background: linear-gradient(90deg, rgba(51,78,172,0.8), rgba(13,148,136,0.75));
 }
 
 .resnet-stage-card::after {
@@ -4493,6 +4536,10 @@ section {
     background: linear-gradient(180deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.92));
     border-color: rgba(245, 158, 11, 0.5);
     box-shadow: 0 22px 58px rgba(245, 158, 11, 0.16);
+}
+
+.resnet-stage-card.featured::before {
+    background: linear-gradient(90deg, #f59e0b, #ec4899);
 }
 
 .resnet-stage-topline {
@@ -4527,7 +4574,7 @@ section {
 }
 
 .resnet-stage-art {
-    min-height: 92px;
+    min-height: 112px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4547,6 +4594,17 @@ section {
     color: var(--gray-500);
     font-size: 0.78rem;
     line-height: 1.55;
+}
+
+.resnet-stage-note {
+    padding: 0.65rem 0.7rem;
+    border-left: 3px solid rgba(13, 148, 136, 0.72);
+    border-radius: 0.7rem;
+    background: rgba(13, 148, 136, 0.07);
+    color: var(--gray-600);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.45;
 }
 
 .resnet-stage-meta {
@@ -4571,11 +4629,14 @@ section {
 
 .mri-stack span {
     position: absolute;
-    width: 62px;
-    height: 62px;
+    width: 70px;
+    height: 70px;
     border-radius: 0.85rem;
     border: 1px solid rgba(51, 78, 172, 0.18);
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.08), rgba(51, 78, 172, 0.16));
+    background:
+        radial-gradient(circle at 45% 42%, rgba(236,72,153,0.28), transparent 18%),
+        radial-gradient(circle at 58% 55%, rgba(13,148,136,0.24), transparent 20%),
+        linear-gradient(135deg, rgba(15, 23, 42, 0.08), rgba(51, 78, 172, 0.16));
 }
 
 .mri-stack span:nth-child(1) { transform: translate(-12px, 10px); }
@@ -4594,7 +4655,7 @@ section {
 }
 
 .stem-stack span {
-    min-width: 96px;
+    min-width: 116px;
     padding: 0.35rem 0.5rem;
     border-radius: 0.45rem;
     color: white;
@@ -4613,8 +4674,8 @@ section {
 }
 
 .bottleneck span {
-    width: 42px;
-    height: 48px;
+    width: 48px;
+    height: 54px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -4640,10 +4701,29 @@ section {
     transform: translateY(-1.2rem);
 }
 
+.skip-arc::after {
+    content: '+';
+    position: absolute;
+    left: 50%;
+    bottom: -1.05rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: #0d9488;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 900;
+}
+
 .feature-map {
     display: grid;
-    grid-template-columns: repeat(2, 38px);
-    gap: 0.45rem;
+    grid-template-columns: repeat(3, 30px);
+    gap: 0.35rem;
+    transform: rotate(-8deg);
 }
 
 .feature-map span,
@@ -4654,8 +4734,26 @@ section {
 }
 
 .feature-map span {
-    width: 38px;
-    height: 38px;
+    width: 30px;
+    height: 30px;
+}
+
+.feature-map span:nth-child(1) { opacity: 0.55; transform: translate(8px, 8px); }
+.feature-map span:nth-child(2) { opacity: 0.72; transform: translate(4px, 4px); }
+.feature-map span:nth-child(3) { opacity: 0.88; }
+.feature-map span:nth-child(4) { opacity: 1; transform: translate(-4px, -4px); }
+
+.feature-map::after {
+    content: 'stride 2';
+    grid-column: 1 / -1;
+    justify-self: center;
+    padding: 0.22rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.1);
+    color: var(--gray-600);
+    font-size: 0.56rem;
+    font-weight: 900;
+    transform: rotate(8deg);
 }
 
 .deep-stack {
@@ -4682,11 +4780,13 @@ section {
 
 .channels {
     gap: 0.25rem;
+    perspective: 280px;
 }
 
 .channels span {
     width: 18px;
     height: 68px;
+    transform: rotateY(-24deg);
 }
 
 .channels span:nth-child(2) { height: 78px; }
@@ -4717,6 +4817,7 @@ section {
     height: 70px;
     border-radius: 999px;
     background: linear-gradient(180deg, #0d9488, #06b6d4);
+    box-shadow: 0 0 0 8px rgba(13, 148, 136, 0.1);
 }
 
 .dense-head {
@@ -4731,8 +4832,8 @@ section {
 }
 
 .dense-head b {
-    width: 34px;
-    height: 48px;
+    width: 42px;
+    height: 58px;
     background: linear-gradient(90deg, rgba(148,163,184,0.35), rgba(51,78,172,0.28));
     clip-path: polygon(0 0, 100% 20%, 100% 80%, 0 100%);
 }
@@ -4781,6 +4882,10 @@ section {
 }
 
 @media (max-width: 900px) {
+    .resnet-architecture-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .resnet-flow-redesign {
         grid-template-columns: 1fr;
         overflow-x: visible;
@@ -4806,6 +4911,12 @@ section {
         right: auto;
         top: 2rem;
         transform: rotate(135deg);
+    }
+}
+
+@media (max-width: 560px) {
+    .resnet-architecture-summary {
+        grid-template-columns: 1fr;
     }
 }
 

@@ -2297,6 +2297,25 @@
                         <p>Watch your MRI scan transform through 50 layers of feature extraction</p>
                     </div>
 
+                    <div class="resnet-architecture-summary">
+                        <div>
+                            <span>Backbone</span>
+                            <strong>ResNet-50</strong>
+                        </div>
+                        <div>
+                            <span>Core Unit</span>
+                            <strong>1x1 - 3x3 - 1x1 Bottleneck</strong>
+                        </div>
+                        <div>
+                            <span>Stability</span>
+                            <strong>Identity Skip Paths</strong>
+                        </div>
+                        <div>
+                            <span>Classifier</span>
+                            <strong>2048-D Evidence Vector</strong>
+                        </div>
+                    </div>
+
                     <div class="resnet-flow-container resnet-flow-redesign">
                         <div class="resnet-flow-rail" aria-hidden="true"></div>
 
@@ -2311,6 +2330,7 @@
                             </div>
                             <h5>MRI Tensor</h5>
                             <p>Preprocessed scan enters the classifier as a normalized RGB tensor.</p>
+                            <div class="resnet-stage-note">The model receives the full scan context before any spatial compression.</div>
                             <div class="resnet-stage-meta">
                                 <span>256×256×3</span>
                                 <span>scale 0-1</span>
@@ -2329,6 +2349,7 @@
                             </div>
                             <h5>Edge & Texture Lift</h5>
                             <p>The stem reduces spatial size while extracting low-level tumor boundary cues.</p>
+                            <div class="resnet-stage-note">Large 7x7 filters capture broad intensity gradients, then pooling keeps dominant edges.</div>
                             <div class="resnet-stage-meta">
                                 <span>64 filters</span>
                                 <span>64×64×64</span>
@@ -2346,6 +2367,7 @@
                             </div>
                             <h5>Fine Anatomy Features</h5>
                             <p>Three residual bottlenecks retain local details and early anatomical edges.</p>
+                            <div class="resnet-stage-note">Identity addition learns corrections over the original feature map instead of replacing it.</div>
                             <div class="resnet-stage-meta">
                                 <span>3 blocks</span>
                                 <span>64×64×256</span>
@@ -2362,6 +2384,7 @@
                             </div>
                             <h5>Regional Patterns</h5>
                             <p>Four bottleneck blocks learn tissue-region patterns and reduce resolution.</p>
+                            <div class="resnet-stage-note">The first block downsamples to widen receptive field while preserving residual flow.</div>
                             <div class="resnet-stage-meta">
                                 <span>4 blocks</span>
                                 <span>32×32×512</span>
@@ -2379,6 +2402,7 @@
                             </div>
                             <h5>Deep Tumor Semantics</h5>
                             <p>Six residual units form high-level lesion descriptors while skip paths preserve gradient flow.</p>
+                            <div class="resnet-stage-note">This is the main semantic trunk: deeper filters combine shape, texture, and location evidence.</div>
                             <div class="resnet-stage-meta">
                                 <span>6 blocks</span>
                                 <span>16×16×1024</span>
@@ -2395,6 +2419,7 @@
                             </div>
                             <h5>Abstract Feature Cube</h5>
                             <p>The final residual group compresses evidence into a dense 2048-channel representation.</p>
+                            <div class="resnet-stage-note">Channels expand so small lesion patterns can be represented as separable signals.</div>
                             <div class="resnet-stage-meta">
                                 <span>3 blocks</span>
                                 <span>8×8×2048</span>
@@ -2413,6 +2438,7 @@
                             </div>
                             <h5>Global Evidence Vector</h5>
                             <p>Average pooling collapses each feature map into one compact classifier-ready vector.</p>
+                            <div class="resnet-stage-note">Every channel votes once, reducing sensitivity to exact tumor location in the scan.</div>
                             <div class="resnet-stage-meta">
                                 <span>1×1×2048</span>
                                 <span>no spatial grid</span>
@@ -2431,6 +2457,7 @@
                             </div>
                             <h5>Dense + Softmax</h5>
                             <p>Dropout-regularized dense layers map the feature vector to two probabilities.</p>
+                            <div class="resnet-stage-note">Dropout reduces overconfidence before the final probability split.</div>
                             <div class="resnet-stage-meta">
                                 <span>2048 → 2</span>
                                 <span>softmax</span>
@@ -2456,6 +2483,7 @@
                             </div>
                             <h5>Classification Output</h5>
                             <p>The result decides whether segmentation should run in the two-stage pipeline.</p>
+                            <div class="resnet-stage-note">High tumor confidence routes the scan to the segmentation stage for mask generation.</div>
                         </article>
                     </div>
                 </div>
