@@ -13695,17 +13695,69 @@ section {
 .preview-image-container {
     position: relative;
     padding: 1rem;
+    min-height: 12rem;
     max-height: 420px;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .preview-image-container img {
     width: 100%;
     height: auto;
-    border-radius: 0.5rem;
-    display: block;
     max-height: 380px;
     object-fit: contain;
+    border-radius: 0.5rem;
+    display: none;
+    background: var(--gray-100);
+}
+
+.preview-fallback {
+    width: 100%;
+    min-height: 10rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+    border: 2px dashed var(--gray-300);
+    border-radius: 0.75rem;
+    background: white;
+    color: var(--gray-700);
+    text-align: left;
+}
+
+.preview-fallback[hidden] {
+    display: none;
+}
+
+.preview-fallback i {
+    width: 3rem;
+    height: 3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: rgba(51, 78, 172, 0.1);
+    color: var(--planetary);
+    font-size: 1.25rem;
+}
+
+.preview-fallback strong,
+.preview-fallback span {
+    display: block;
+}
+
+.preview-fallback strong {
+    color: var(--galaxy);
+    margin-bottom: 0.35rem;
+}
+
+.preview-fallback span {
+    font-size: 0.875rem;
+    line-height: 1.5;
 }
 
 .preview-overlay {
@@ -13713,19 +13765,38 @@ section {
     bottom: 1.5rem;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    width: calc(100% - 2rem);
+    pointer-events: none;
+}
+
+.image-preview-v2.preview-has-fallback .preview-overlay {
+    display: none;
 }
 
 .preview-badge {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
+    min-height: 2.375rem;
     background: rgba(16, 185, 129, 0.95);
     color: white;
     padding: 0.5rem 1rem;
     border-radius: 20px;
     font-size: 0.875rem;
     font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.preview-badge i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 /* Analyze Button V2 */
