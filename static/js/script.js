@@ -3,6 +3,22 @@
 // ==================== Configuration ====================
 const API_BASE_URL = 'http://localhost:5000';
 
+// ==================== Theme ====================
+const savedTheme = localStorage.getItem('theme');
+
+if (savedTheme) {
+    document.documentElement.setAttribute('data-theme', savedTheme);
+} else {
+    const prefersDark = window.matchMedia(
+        '(prefers-color-scheme: dark)'
+    ).matches;
+
+    document.documentElement.setAttribute(
+        'data-theme',
+        prefersDark ? 'dark' : 'light'
+    );
+}
+
 // ==================== State Management ====================
 let uploadedFile = null;
 let currentResults = null;
@@ -173,8 +189,8 @@ function initializeEventListeners() {
         anchor.addEventListener('click', handleSmoothScroll);
     });
     
-    // Scroll spy for navigation
-    window.addEventListener('scroll', handleScrollSpy);
+    // Scroll spy — passive listener so it never blocks scrolling
+    window.addEventListener('scroll', handleScrollSpy, { passive: true });
 }
 
 // ==================== File Handling ====================
@@ -1095,23 +1111,34 @@ function smoothScrollTo(targetPosition, duration) {
     requestAnimationFrame(animation);
 }
 
+// Cache sections NodeList once — never query inside scroll handler
+const _scrollSpySections = document.querySelectorAll('section[id]');
+let _scrollSpyTicking = false;
+
 function handleScrollSpy() {
-    const sections = document.querySelectorAll('section[id]');
-    const scrollPosition = window.scrollY + 100;
-    
-    sections.forEach(section => {
-        const sectionTop = section.offsetTop;
-        const sectionHeight = section.offsetHeight;
-        const sectionId = section.getAttribute('id');
-        
-        if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
-            elements.navLinks.forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('href') === `#${sectionId}`) {
-                    link.classList.add('active');
-                }
-            });
-        }
+    // rAF throttle: only process once per frame even if scroll fires rapidly
+    if (_scrollSpyTicking) return;
+    _scrollSpyTicking = true;
+
+    requestAnimationFrame(() => {
+        const scrollPosition = window.scrollY + 100;
+
+        _scrollSpySections.forEach(section => {
+            const sectionTop = section.offsetTop;
+            const sectionHeight = section.offsetHeight;
+            const sectionId = section.getAttribute('id');
+
+            if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
+                elements.navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === `#${sectionId}`) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+        });
+
+        _scrollSpyTicking = false;
     });
 }
 
@@ -1141,220 +1168,86 @@ function initializeAnimations() {
 }
 
 // Features Section Scroll Animations
+// Stagger delays are handled entirely via CSS custom properties (--stagger)
+// in performance.css — no setTimeout needed, no inline <style> injection.
 function initializeFeaturesAnimations() {
-    // Animate elements when they come into view
+    const scrollObserverOptions = {
+        threshold: 0.08,
+        rootMargin: '0px 0px -40px 0px'
+    };
+
     const animateOnScroll = (entries, observer) => {
-        entries.forEach((entry, index) => {
+        entries.forEach(entry => {
             if (entry.isIntersecting) {
-                // Add delay based on index for staggered effect
-                const delay = index * 100;
-                setTimeout(() => {
+                // Use rAF for the class add so it batches with other paint work
+                requestAnimationFrame(() => {
                     entry.target.classList.add('animate-in');
-                }, delay);
+                });
                 observer.unobserve(entry.target);
             }
         });
     };
-    
-    const scrollObserverOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    };
-    
+
     const scrollObserver = new IntersectionObserver(animateOnScroll, scrollObserverOptions);
-    
+
     // Observe feature highlight card
     const highlightCard = document.querySelector('.feature-highlight-card');
     if (highlightCard) {
         highlightCard.classList.add('animate-ready');
         scrollObserver.observe(highlightCard);
     }
-    
+
     // Observe bento cards
-    const bentoCards = document.querySelectorAll('.bento-card');
-    bentoCards.forEach(card => {
+    document.querySelectorAll('.bento-card').forEach(card => {
         card.classList.add('animate-ready');
         scrollObserver.observe(card);
     });
-    
+
     // Observe tech stack items
-    const techItems = document.querySelectorAll('.tech-item');
-    techItems.forEach(item => {
+    document.querySelectorAll('.tech-item').forEach(item => {
         item.classList.add('animate-ready');
         scrollObserver.observe(item);
     });
-    
+
     // Observe tech stack card
     const techStackCard = document.querySelector('.tech-stack-card');
     if (techStackCard) {
         techStackCard.classList.add('animate-ready');
         scrollObserver.observe(techStackCard);
     }
-    
-    // Add CSS for the animations
-    const animationStyles = document.createElement('style');
-    animationStyles.textContent = `
-        .animate-ready {
-            opacity: 0;
-            transform: translateY(30px);
-            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-        }
-        
-        .animate-ready.animate-in {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        
-        .feature-highlight-card.animate-ready {
-            transform: translateY(40px);
-        }
-        
-        .bento-card.animate-ready {
-            transform: translateY(25px) scale(0.98);
-            transition: opacity 0.5s ease-out, transform 0.5s ease-out, box-shadow 0.3s ease;
-        }
-        
-        .bento-card.animate-ready.animate-in {
-            transform: translateY(0) scale(1);
-        }
-        
-        .tech-item.animate-ready {
-            transform: translateY(20px) scale(0.95);
-        }
-        
-        .tech-item.animate-ready.animate-in {
-            transform: translateY(0) scale(1);
-        }
-        
-        .tech-stack-card.animate-ready {
-            transform: translateY(35px);
-        }
-        
-        /* Pipeline stage hover effect */
-        .pipeline-stage .stage-icon {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-        }
-        
-        .pipeline-stage:hover .stage-icon {
-            transform: scale(1.15) rotate(5deg);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-        }
-        
-        /* Bento card icon bounce */
-        .bento-card:hover .bento-icon {
-            animation: iconBounce 0.5s ease;
-        }
-        
-        @keyframes iconBounce {
-            0%, 100% { transform: scale(1) rotate(0deg); }
-            25% { transform: scale(1.15) rotate(-5deg); }
-            50% { transform: scale(1.1) rotate(5deg); }
-            75% { transform: scale(1.12) rotate(-3deg); }
-        }
-        
-        /* Speed fill animation */
-        .speed-fill {
-            animation: speedPulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes speedPulse {
-            0%, 100% { opacity: 1; width: 85%; }
-            50% { opacity: 0.8; width: 80%; }
-        }
-        
-        /* Tumor mark pulse */
-        .overlay-tumor-mark {
-            animation: tumorPulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes tumorPulse {
-            0%, 100% { transform: scale(1); opacity: 0.7; box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); }
-            50% { transform: scale(1.25); opacity: 1; box-shadow: 0 0 25px rgba(239, 68, 68, 0.7); }
-        }
-        
-        /* Format badge hover */
-        .format-badge {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        
-        .format-badge:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 12px rgba(51, 78, 172, 0.25);
-        }
-        
-        /* Dataset stat slide */
-        .dataset-stat {
-            transition: transform 0.3s ease, background 0.3s ease;
-        }
-        
-        /* Tech logo hover glow */
-        .tech-logo {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .tech-item:hover .tech-logo {
-            transform: scale(1.1);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        }
-        
-        /* Pipeline connector animation */
-        .connector-line-visual {
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .connector-line-visual::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
-            animation: shimmer 2s infinite;
-        }
-        
-        @keyframes shimmer {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
-        
-        /* Bento metric glow on hover */
-        .bento-card:hover .bento-metric {
-            background: linear-gradient(135deg, rgba(51, 78, 172, 0.1), rgba(112, 152, 209, 0.1));
-        }
-        
-        .bento-card:hover .metric-value {
-            text-shadow: 0 0 20px rgba(51, 78, 172, 0.3);
-        }
-    `;
-    document.head.appendChild(animationStyles);
+    // NOTE: all animation CSS (keyframes, transitions, hover effects) now live
+    // in performance.css — no runtime <style> injection needed.
 }
 
 function animateValue(element) {
-    const target = parseFloat(element.getAttribute('data-target'));
-    const duration = 2000;
-    const start = 0;
-    const increment = target / (duration / 16);
-    let current = start;
-    
-    const timer = setInterval(() => {
-        current += increment;
-        
-        if (current >= target) {
-            current = target;
-            clearInterval(timer);
-        }
-        
-        // Format based on value type
-        if (element.textContent.includes('%')) {
+    const target   = parseFloat(element.getAttribute('data-target'));
+    const duration = 1800; // ms
+    const isPercent = element.textContent.includes('%');
+    const isDecimal = target < 10;
+    let startTime = null;
+
+    function step(timestamp) {
+        if (!startTime) startTime = timestamp;
+        const elapsed  = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // ease-out-quart for a smooth deceleration
+        const eased    = 1 - Math.pow(1 - progress, 4);
+        const current  = target * eased;
+
+        if (isPercent) {
             element.textContent = current.toFixed(1) + '%';
-        } else if (target < 10) {
+        } else if (isDecimal) {
             element.textContent = current.toFixed(1);
         } else {
             element.textContent = Math.floor(current).toLocaleString();
         }
-    }, 16);
+
+        if (progress < 1) {
+            requestAnimationFrame(step);
+        }
+    }
+
+    requestAnimationFrame(step);
 }
 
 // ==================== Notifications ====================
@@ -1398,32 +1291,7 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
-// Add animation styles
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(style);
+// slideIn / slideOut keyframes now live in performance.css — no runtime injection needed.
 
 // ==================== API Health Check ====================
 async function checkAPIHealth() {
@@ -2143,3 +2011,89 @@ window.NeuroScanAI = {
     showHistoryPanel,
     saveToHistory
 };
+
+
+// ==================== Theme Toggle ====================
+
+const themeToggle = document.getElementById('theme-toggle');
+
+if (themeToggle) {
+    updateThemeTooltip();
+    themeToggle.addEventListener('click', animateThemeToggle);
+}
+
+function animateThemeToggle() {
+
+    const nodes = [
+        document.querySelector('.node-1'),
+        document.querySelector('.node-2'),
+        document.querySelector('.node-3'),
+        document.querySelector('.node-4')
+    ];
+
+    nodes.forEach((node, index) => {
+
+        setTimeout(() => {
+
+            node.classList.add('pulse');
+
+            setTimeout(() => {
+                node.classList.remove('pulse');
+            }, 200);
+
+        }, index * 80);
+
+    });
+
+    setTimeout(() => {
+
+        const center = document.querySelector('.nn-center');
+
+        center.classList.add('center-pulse');
+
+        setTimeout(() => {
+
+            center.classList.remove('center-pulse');
+
+            const currentTheme =
+                document.documentElement.getAttribute('data-theme');
+
+            const newTheme =
+                currentTheme === 'dark'
+                    ? 'light'
+                    : 'dark';
+
+            document.documentElement.setAttribute(
+                'data-theme',
+                newTheme
+            );
+
+            localStorage.setItem(
+                'theme',
+                newTheme
+            );
+
+            updateThemeTooltip();
+
+        }, 250);
+
+    }, 350);
+}
+
+function updateThemeTooltip() {
+
+    const currentTheme =
+        document.documentElement.getAttribute('data-theme');
+
+    themeToggle.title =
+        currentTheme === 'dark'
+            ? 'Switch to Light Mode'
+            : 'Switch to Dark Mode';
+
+    themeToggle.setAttribute(
+        'aria-label',
+        currentTheme === 'dark'
+            ? 'Switch to Light Mode'
+            : 'Switch to Dark Mode'
+    );
+}

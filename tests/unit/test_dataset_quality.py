@@ -52,8 +52,9 @@ def test_filter_corrupted_respects_missing_policy(tmp_path, monkeypatch):
 
     good_img = tmp_path / "good.png"
     good_mask = tmp_path / "mask.png"
-    cv2.imwrite(str(good_img), np.ones((10, 10), dtype=np.uint8) * 200)
-    cv2.imwrite(str(good_mask), np.ones((10, 10), dtype=np.uint8) * 200)
+    rng = np.random.default_rng(0)
+    cv2.imwrite(str(good_img), (rng.random((10, 10)) * 255).astype(np.uint8))
+    cv2.imwrite(str(good_mask), (rng.random((10, 10)) * 255).astype(np.uint8))
 
     blank_img = tmp_path / "blank.png"
     cv2.imwrite(str(blank_img), np.zeros((10, 10), dtype=np.uint8))

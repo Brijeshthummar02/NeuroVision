@@ -2,23 +2,40 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="NeuroScan AI — AI-powered brain tumor detection using ResNet-50 and ResUNet with 97.92% accuracy. Analyze MRI scans in under 3 seconds.">
+    <meta name="theme-color" content="#334EAC">
     <title>NeuroScan AI - Brain Tumor Detection</title>
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.svg') }}">
-    
-    <!-- Fonts -->
+
+    <!-- DNS prefetch for all external CDN origins -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Preconnect for fonts (highest priority, used in LCP) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Custom CSS with cache busting -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ range(1000, 9999) | random }}">
+
+    <!-- Preload the hero logo (LCP image — appears in navbar + hero) -->
+    <link rel="preload" href="{{ url_for('static', filename='images/logo.svg') }}" as="image" type="image/svg+xml">
+
+    <!-- Fonts — non-blocking load with display=swap -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"></noscript>
+
+    <!-- Icons — non-blocking load -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+
+    <!-- Custom CSS (blocking — intentional: sets colours before paint) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Performance optimisation layer — must load after style.css -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/performance.css') }}">
 </head>
 <body>
     
@@ -27,7 +44,7 @@
         <div class="container">
             <div class="nav-content">
                 <a href="#home" class="logo" id="logoLink">
-                    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NeuroScan AI" class="logo-icon">
+                    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NeuroScan AI" class="logo-icon" decoding="async" fetchpriority="high">
                     <span class="logo-text">NeuroScan<span class="ai-badge">AI</span></span>
                 </a>
                 <ul class="nav-links">
@@ -43,6 +60,24 @@
                     <button id="historyButton" type="button" onclick="showHistoryPanel()" style="display: none;">
                         <i class="fas fa-history"></i>
                         <span>History</span>
+                    </button>
+                    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme" title="Toggle Theme">
+                        <svg class="theme-network-icon" width="28" height="28" viewBox="0 0 48 48">
+                            <!-- edges -->
+                            <line x1="12" y1="14" x2="24" y2="24" class="nn-edge"/>
+                            <line x1="36" y1="14" x2="24" y2="24" class="nn-edge"/>
+                            <line x1="12" y1="34" x2="24" y2="24" class="nn-edge"/>
+                            <line x1="36" y1="34" x2="24" y2="24" class="nn-edge"/>
+
+                            <!-- corner nodes -->
+                            <circle cx="12" cy="14" r="4" class="nn-node node-1"/>
+                            <circle cx="36" cy="14" r="4" class="nn-node node-2"/>
+                            <circle cx="12" cy="34" r="4" class="nn-node node-3"/>
+                            <circle cx="36" cy="34" r="4" class="nn-node node-4"/>
+
+                            <!-- center node -->
+                            <circle cx="24" cy="24" r="5.5" class="nn-center"/>
+                        </svg>
                     </button>
                     <button id="authButton" type="button" onclick="showAuthModal('login')">
                         <i class="fas fa-sign-in-alt"></i>
@@ -67,7 +102,7 @@
         <div class="container">
             <div class="hero-content">
                 <div class="hero-logo">
-                    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NeuroScan AI Logo" class="hero-logo-img">
+                    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NeuroScan AI Logo" class="hero-logo-img" decoding="async" fetchpriority="high">
                 </div>
                 <div class="hero-badge">
                     <i class="fas fa-award"></i>
@@ -295,42 +330,42 @@
                 <div class="tech-modern-grid">
                     <div class="tech-modern-item">
                         <div class="tech-modern-logo">
-                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/tensorflow/tensorflow-original.svg" alt="TensorFlow">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/tensorflow/tensorflow-original.svg" alt="TensorFlow" loading="lazy" decoding="async">
                         </div>
                         <span class="tech-modern-name">TensorFlow</span>
                         <span class="tech-modern-role">DEEP LEARNING</span>
                     </div>
                     <div class="tech-modern-item">
                         <div class="tech-modern-logo">
-                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/keras/keras-original.svg" alt="Keras">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/keras/keras-original.svg" alt="Keras" loading="lazy" decoding="async">
                         </div>
                         <span class="tech-modern-name">Keras</span>
                         <span class="tech-modern-role">MODEL API</span>
                     </div>
                     <div class="tech-modern-item">
                         <div class="tech-modern-logo">
-                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" alt="Python">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" alt="Python" loading="lazy" decoding="async">
                         </div>
                         <span class="tech-modern-name">Python</span>
                         <span class="tech-modern-role">BACKEND</span>
                     </div>
                     <div class="tech-modern-item">
                         <div class="tech-modern-logo">
-                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flask/flask-original.svg" alt="Flask">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flask/flask-original.svg" alt="Flask" loading="lazy" decoding="async">
                         </div>
                         <span class="tech-modern-name">Flask</span>
                         <span class="tech-modern-role">WEB SERVER</span>
                     </div>
                     <div class="tech-modern-item">
                         <div class="tech-modern-logo">
-                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/opencv/opencv-original.svg" alt="OpenCV">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/opencv/opencv-original.svg" alt="OpenCV" loading="lazy" decoding="async">
                         </div>
                         <span class="tech-modern-name">OpenCV</span>
                         <span class="tech-modern-role">IMAGE PROCESSING</span>
                     </div>
                     <div class="tech-modern-item">
                         <div class="tech-modern-logo">
-                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/numpy/numpy-original.svg" alt="NumPy">
+                            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/numpy/numpy-original.svg" alt="NumPy" loading="lazy" decoding="async">
                         </div>
                         <span class="tech-modern-name">NumPy</span>
                         <span class="tech-modern-role">COMPUTATION</span>
@@ -3853,7 +3888,7 @@ window.addEventListener('resize', function() {
 });
     </script>
     <!-- Custom JavaScript with cache busting -->
-    <script src="{{ url_for('static', filename='js/script.js') }}?v={{ range(1000, 9999) | random }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
     
 </body>
 </html>

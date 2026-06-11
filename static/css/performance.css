@@ -1,0 +1,691 @@
+/* ================================================================
+   NEUROSCAN AI — PERFORMANCE OPTIMISATION LAYER
+   Load AFTER style.css. Overrides all perf-hostile rules.
+   ================================================================ */
+
+/* ────────────────────────────────────────────────────────────
+   1. SCROLL BEHAVIOUR — only html, NOT * (critical!)
+   ──────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+    /* Override the catastrophic wildcard scroll-behavior in style.css */
+    scroll-behavior: auto !important;
+}
+
+html {
+    scroll-behavior: smooth !important; /* only on the root */
+}
+
+/* ────────────────────────────────────────────────────────────
+   2. GPU COMPOSITING — promote animated layers to the GPU.
+   Using translate3d(0,0,0) or will-change so the browser
+   keeps them on their own compositor layer.
+   ──────────────────────────────────────────────────────────── */
+
+/* Hero blobs – heavy filter:blur + long float animation */
+.blob {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Background spheres in About section */
+.about-gradient-sphere {
+    will-change: opacity;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Floating shapes in Features section */
+.floating-shape {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Navbar (fixed element; promote to its own layer) */
+.navbar {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Cards that translate on hover */
+.story-card,
+.highlight-card,
+.tech-modern-item,
+.feature-card-premium,
+.bento-card,
+.step-card,
+.why-card,
+.stat-card,
+.feature-card {
+    will-change: transform, box-shadow;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Pipeline nodes with ring animations */
+.node-ring,
+.icon-ring {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+}
+
+/* Badge glow / pulse rings */
+.badge-icon {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Progress bar fill (width changes) */
+.progress-fill,
+.bar-fill {
+    will-change: width;
+    transform: translateZ(0);
+}
+
+/* Scroll-driven fade-in elements */
+.animate-ready {
+    will-change: opacity, transform;
+}
+
+/* ────────────────────────────────────────────────────────────
+   3. CONTAIN — isolate layout / paint / style per section.
+   Prevents section re-paints from cascading to the whole page.
+   ──────────────────────────────────────────────────────────── */
+.hero-section,
+.about-section,
+.features-section-v2,
+.scan-section-v2,
+.how-it-works-section,
+.arch-v2-section,
+.stats-section {
+    contain: layout style;
+}
+
+/* Modal and panel overlays — full isolation */
+.auth-modal,
+.history-panel,
+.user-menu {
+    contain: layout style paint;
+}
+
+/* ────────────────────────────────────────────────────────────
+   4. PAINT CONTAINMENT — keep heavy decorative containers
+      from dirtying the main document.
+   ──────────────────────────────────────────────────────────── */
+.hero-background,
+.about-background,
+.features-bg-container {
+    contain: strict;
+    pointer-events: none;
+}
+
+/* ────────────────────────────────────────────────────────────
+   5. CONTENT-VISIBILITY — off-screen sections don't render.
+      The browser skips layout/paint until they scroll into view.
+   ──────────────────────────────────────────────────────────── */
+.about-section,
+.features-section-v2,
+.how-it-works-section,
+.scan-section-v2,
+.arch-v2-section,
+.stats-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 800px; /* estimated height placeholder */
+}
+
+/* ────────────────────────────────────────────────────────────
+   6. FIX "transition: all" — replace with compositor-safe
+      specific properties only (no layout properties in transition).
+   ──────────────────────────────────────────────────────────── */
+
+/* Generic card hover — only transform + box-shadow (GPU) */
+.story-card,
+.highlight-card,
+.feature-card,
+.feature-card-premium,
+.bento-card,
+.step-card,
+.why-card,
+.stat-card,
+.details-card,
+.tech-modern-item,
+.tech-item-card,
+.summary-card,
+.result-image-card,
+.history-item {
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.18s ease !important;
+}
+
+/* Links / nav links — only color (no layout) */
+.nav-link {
+    transition: color 0.15s ease !important;
+}
+
+.nav-link::after {
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Buttons — transform + opacity only */
+.btn,
+.btn-primary,
+.btn-secondary,
+.action-btn,
+.auth-submit-btn,
+.history-view-btn,
+.history-delete-btn {
+    transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.15s ease,
+                background-color 0.18s ease,
+                box-shadow 0.18s ease !important;
+}
+
+/* Theme toggle — only transform */
+.theme-toggle {
+    transition: transform 0.2s ease,
+                background-color 0.2s ease,
+                border-color 0.2s ease !important;
+}
+
+/* Tech logos */
+.tech-modern-logo,
+.tech-modern-logo img {
+    transition: transform 0.25s ease,
+                box-shadow 0.25s ease !important;
+}
+
+/* Upload zone */
+.upload-zone-v2,
+.upload-area {
+    transition: border-color 0.2s ease,
+                background-color 0.2s ease !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   7. OPTIMISE FLOAT ANIMATION — use only transform, keep on GPU.
+      Replace translate+scale with pure translate to avoid
+      triggering compositing layer promotions on every frame.
+   ──────────────────────────────────────────────────────────── */
+@keyframes float {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    33%       { transform: translate3d(24px, -24px, 0); }
+    66%       { transform: translate3d(-16px, 16px, 0); }
+}
+
+/* Reduce animation intensity on battery/low-perf mode */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .blob,
+    .floating-shape,
+    .about-gradient-sphere {
+        animation: none !important;
+    }
+}
+
+/* ────────────────────────────────────────────────────────────
+   8. SCROLLBAR PERFORMANCE — thin scrollbar reduces reflow
+   ──────────────────────────────────────────────────────────── */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: #7098D1 transparent;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #7098D1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #334EAC;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* ────────────────────────────────────────────────────────────
+   9. IMAGE RENDERING — smooth, hardware-accelerated
+   ──────────────────────────────────────────────────────────── */
+img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+}
+
+.tech-modern-logo img,
+.hero-logo-img,
+.logo-icon,
+.result-image-card img,
+.doctor-image img {
+    image-rendering: auto; /* smooth for photos/logos */
+}
+
+/* ────────────────────────────────────────────────────────────
+   10. REDUCE PAINT AREAS — isolate frequently repainted elements
+   ──────────────────────────────────────────────────────────── */
+
+/* Notification toast — its own paint layer */
+.notification {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    contain: layout style paint;
+}
+
+/* Loading progress fill */
+#progressFill {
+    will-change: width;
+    transform: translateZ(0);
+}
+
+/* Accordion content — only max-height transitions for smooth open */
+.accordion-content {
+    transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.24s ease !important;
+    overflow: hidden;
+}
+
+/* ────────────────────────────────────────────────────────────
+   11. FONT DISPLAY — prevent FOUT (Flash of Unstyled Text)
+   ──────────────────────────────────────────────────────────── */
+@font-face {
+    font-display: swap;
+}
+
+/* ────────────────────────────────────────────────────────────
+   12. INTERACTION RESPONSIVENESS — instant cursor feedback
+   ──────────────────────────────────────────────────────────── */
+button,
+a,
+[role="button"],
+label[for],
+.upload-zone-v2,
+.upload-area,
+.accordion-header,
+.theme-toggle,
+.action-btn,
+.nav-link {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation; /* removes 300ms tap delay on mobile */
+}
+
+/* ────────────────────────────────────────────────────────────
+   13. OPTIMIZED ANIMATE-READY TRANSITIONS
+       Use CSS custom property for stagger delay instead of JS setTimeout
+   ──────────────────────────────────────────────────────────── */
+.animate-ready {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0);
+    transition: opacity 0.52s cubic-bezier(0.4, 0, 0.2, 1) var(--stagger, 0ms),
+                transform 0.52s cubic-bezier(0.4, 0, 0.2, 1) var(--stagger, 0ms) !important;
+}
+
+.animate-ready.animate-in {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) !important;
+}
+
+/* Stagger delays via CSS variables — no JS setTimeout needed */
+.animate-ready:nth-child(1) { --stagger: 0ms; }
+.animate-ready:nth-child(2) { --stagger: 80ms; }
+.animate-ready:nth-child(3) { --stagger: 160ms; }
+.animate-ready:nth-child(4) { --stagger: 240ms; }
+.animate-ready:nth-child(5) { --stagger: 320ms; }
+.animate-ready:nth-child(6) { --stagger: 400ms; }
+
+/* ────────────────────────────────────────────────────────────
+   14. NOTIFICATION SLIDE ANIMATIONS — use transform not left/right
+   ──────────────────────────────────────────────────────────── */
+@keyframes slideIn {
+    from { transform: translate3d(420px, 0, 0); opacity: 0; }
+    to   { transform: translate3d(0, 0, 0);     opacity: 1; }
+}
+
+@keyframes slideOut {
+    from { transform: translate3d(0, 0, 0);     opacity: 1; }
+    to   { transform: translate3d(420px, 0, 0); opacity: 0; }
+}
+
+/* ────────────────────────────────────────────────────────────
+   15. HOVER STATE UNIFORMITY — remove ambiguous "all" transitions
+       and ensure hover feedback is always instant for interactive elements
+   ──────────────────────────────────────────────────────────── */
+.btn-primary:hover {
+    transform: translate3d(0, -2px, 0) !important;
+}
+
+.btn-secondary:hover {
+    transform: translate3d(0, -1px, 0) !important;
+}
+
+.highlight-card:hover {
+    transform: translate3d(6px, 0, 0) !important;
+}
+
+.story-card:hover {
+    transform: translate3d(0, -4px, 0) !important;
+}
+
+.tech-modern-item:hover {
+    transform: translate3d(0, -6px, 0) !important;
+}
+
+.bento-card:hover {
+    transform: translate3d(0, -4px, 0) !important;
+}
+
+.stat-card:hover {
+    transform: translate3d(0, -4px, 0) !important;
+}
+
+/* Logo hover */
+.logo:hover .logo-icon {
+    transform: scale(1.08) rotate(4deg) translateZ(0) !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   16. HARDWARE ACCELERATE MODAL OPEN/CLOSE
+   ──────────────────────────────────────────────────────────── */
+.auth-modal-content,
+.history-panel-content {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* ────────────────────────────────────────────────────────────
+   17. OVERFLOW CONTAINMENT — prevent scroll chaining
+   ──────────────────────────────────────────────────────────── */
+.history-panel-content,
+.auth-modal-content {
+    overscroll-behavior: contain;
+}
+
+/* ────────────────────────────────────────────────────────────
+   18. BACKDROP FILTER OPTIMISATION — limit blur radius
+   ──────────────────────────────────────────────────────────── */
+.navbar {
+    -webkit-backdrop-filter: blur(8px) saturate(1.4);
+    backdrop-filter: blur(8px) saturate(1.4);
+}
+
+/* ────────────────────────────────────────────────────────────
+   19. REDUCE BLOB BLUR COST — smaller radius = cheaper GPU fill
+   ──────────────────────────────────────────────────────────── */
+.blob {
+    filter: blur(60px) !important; /* was 80px */
+    opacity: 0.25 !important;      /* was 0.3  */
+}
+
+.about-gradient-sphere {
+    filter: blur(90px) !important; /* was 120px */
+    opacity: 0.28 !important;      /* was 0.35  */
+}
+
+/* ────────────────────────────────────────────────────────────
+   20. EXTENDED TRANSITION OVERRIDES
+       Every selector that had "transition: all" in style.css
+       gets a compositor-safe replacement here.
+   ──────────────────────────────────────────────────────────── */
+
+/* NN theme-icon nodes */
+.nn-edge    { transition: stroke 0.3s ease !important; }
+.nn-node    { transition: fill 0.25s ease, stroke 0.25s ease !important; }
+.nn-center  { transition: fill 0.25s ease !important; }
+
+/* Feature cards — general + premium */
+.feature-card {
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1),
+                border-color 0.2s ease,
+                box-shadow 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* .btn base — already covered but reinforce */
+.btn {
+    transition: transform 0.18s cubic-bezier(0.4,0,0.2,1),
+                background-color 0.2s ease,
+                box-shadow 0.2s ease,
+                color 0.18s ease !important;
+}
+
+/* Upload area */
+.upload-area {
+    transition: border-color 0.22s ease,
+                background-color 0.22s ease !important;
+}
+
+/* Remove button on preview */
+.remove-btn {
+    transition: transform 0.15s ease,
+                background-color 0.15s ease !important;
+}
+
+/* Story card */
+.story-card {
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* Highlight cards */
+.highlight-card {
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* Tech modern items */
+.tech-modern-item {
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1),
+                border-color 0.2s ease,
+                box-shadow 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+}
+.tech-modern-logo {
+    transition: transform 0.28s ease,
+                box-shadow 0.28s ease !important;
+}
+
+/* Tech item cards (legacy grid) */
+.tech-item-card {
+    transition: transform 0.25s ease,
+                box-shadow 0.25s ease !important;
+}
+
+/* Architecture flow nodes */
+.flow-node,
+.arch-node {
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* Step cards (How It Works) */
+.step-card {
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* Why cards (Features section) */
+.why-card {
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* Stage nodes (ResNet flow) */
+.stage-node {
+    transition: transform 0.25s ease,
+                box-shadow 0.25s ease !important;
+}
+
+/* Output options (Architecture section) */
+.output-option {
+    transition: border-color 0.2s ease,
+                background-color 0.2s ease,
+                color 0.2s ease !important;
+}
+
+/* Metric cards */
+.metric-card {
+    transition: transform 0.25s ease,
+                box-shadow 0.25s ease !important;
+}
+
+/* Model stats */
+.model-stat {
+    transition: background-color 0.2s ease,
+                color 0.2s ease !important;
+}
+
+/* Action items in loading card */
+.action-item {
+    transition: background 0.2s ease,
+                border-left-color 0.2s ease !important;
+}
+
+/* Bento tags */
+.bento-tag {
+    transition: background-color 0.18s ease,
+                color 0.18s ease !important;
+}
+
+/* Format badges */
+.format-badge {
+    transition: transform 0.2s ease,
+                box-shadow 0.2s ease !important;
+}
+
+/* Dataset stats */
+.dataset-stat {
+    transition: transform 0.25s ease,
+                background-color 0.25s ease !important;
+}
+
+/* Scan section step circles */
+.step-circle {
+    transition: background-color 0.2s ease,
+                border-color 0.2s ease,
+                color 0.2s ease !important;
+}
+
+/* UNet blocks */
+.unet-block {
+    transition: transform 0.25s ease,
+                box-shadow 0.25s ease,
+                border-color 0.2s ease !important;
+}
+
+/* Accordion header */
+.accordion-header {
+    transition: background-color 0.2s ease !important;
+}
+
+/* Layer rows in accordion table */
+.layer-row {
+    transition: background-color 0.15s ease !important;
+}
+
+/* Comparison table rows */
+.table-row {
+    transition: background-color 0.15s ease !important;
+}
+
+/* Data stat cards */
+.data-stat-card {
+    transition: transform 0.25s ease,
+                background 0.25s ease !important;
+}
+
+/* Feature highlight card (hero feature) */
+.feature-highlight-card {
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+}
+
+/* Auth button */
+#authButton {
+    transition: background-color 0.18s ease,
+                color 0.18s ease,
+                border-color 0.18s ease,
+                transform 0.15s ease !important;
+}
+
+/* History button */
+#historyButton {
+    transition: color 0.18s ease !important;
+}
+
+/* Verdict stamp */
+.verdict-stamp {
+    transition: transform 0.2s ease !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   21. GLOBAL OVERSCROLL — prevent elastic bounce killing perf
+   ──────────────────────────────────────────────────────────── */
+html, body {
+    overscroll-behavior-y: none;
+}
+
+/* ────────────────────────────────────────────────────────────
+   22. POINTER EVENTS OPTIMISATION
+       Decorative overlays must never trigger hit-testing.
+   ──────────────────────────────────────────────────────────── */
+.hero-background,
+.about-background,
+.features-bg-container,
+.about-gradient-sphere,
+.about-pattern,
+.blob,
+.floating-shape,
+.features-gradient-mesh,
+.features-grid-pattern,
+.card-shine,
+.hero-feature-glow,
+.badge-glow,
+.highlight-glow,
+.icon-ring,
+.node-ring {
+    pointer-events: none !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   23. LAYOUT STABILITY — reserve space for images so they
+       don't trigger layout shifts (CLS).
+   ──────────────────────────────────────────────────────────── */
+.hero-logo-img,
+.logo-icon {
+    aspect-ratio: 1 / 1;
+    height: auto;
+}
+
+.tech-modern-logo img {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    height: auto;
+}
+
+/* Result images — prevent layout shift when they load */
+.result-image-card img {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+}

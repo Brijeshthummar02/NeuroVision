@@ -210,7 +210,9 @@ def plot_distribution(counts: dict, out_path: str):
     axes[1].legend(handles=patches, loc="lower center",
                    bbox_to_anchor=(0.5, -0.12), ncol=2)
 
-    plt.tight_layout()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Chart saved → {out_path}")
