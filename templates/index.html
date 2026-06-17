@@ -2326,305 +2326,194 @@
                         <p>Watch your MRI scan transform through 50 layers of feature extraction</p>
                     </div>
 
-                    <div class="resnet-flow-container">
-                        <!-- Input Node -->
-                        <div class="flow-node input-node-v2">
-                            <div class="node-visual-v2">
-                                <div class="input-preview">
-                                    <div class="brain-grid">
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell"></div>
-                                        <div class="grid-cell center"><i class="fas fa-brain"></i></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <span class="node-tag">INPUT</span>
-                                <h5>MRI Scan</h5>
-                                <div class="node-specs">
-                                    <span>256×256×3 RGB</span>
-                                    <span>Normalized [0-1]</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">256×256×3</div>
+                    <div class="resnet-architecture-summary">
+                        <div>
+                            <span>Backbone</span>
+                            <strong>ResNet-50</strong>
                         </div>
+                        <div>
+                            <span>Core Unit</span>
+                            <strong>1x1 - 3x3 - 1x1 Bottleneck</strong>
+                        </div>
+                        <div>
+                            <span>Stability</span>
+                            <strong>Identity Skip Paths</strong>
+                        </div>
+                        <div>
+                            <span>Classifier</span>
+                            <strong>2048-D Evidence Vector</strong>
+                        </div>
+                    </div>
 
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">Pad & Conv</div>
-                        </div>
+                    <div class="resnet-flow-container resnet-flow-redesign">
+                        <div class="resnet-flow-rail" aria-hidden="true"></div>
 
-                        <!-- Stage 1: Initial Convolution -->
-                        <div class="flow-node stage-node stage-1-node">
-                            <div class="stage-badge">Stage 1</div>
-                            <div class="node-visual-v2">
-                                <div class="conv-block-visual">
-                                    <div class="conv-layer">
-                                        <span class="layer-label">Conv 7×7</span>
-                                        <div class="layer-effect"></div>
-                                    </div>
-                                    <div class="conv-layer bn">
-                                        <span class="layer-label">BatchNorm</span>
-                                    </div>
-                                    <div class="conv-layer relu">
-                                        <span class="layer-label">ReLU</span>
-                                    </div>
-                                    <div class="conv-layer pool">
-                                        <span class="layer-label">MaxPool 3×3</span>
-                                    </div>
+                        <article class="resnet-stage-card input">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">00</span>
+                                <span class="resnet-stage-type">Input</span>
+                            </div>
+                            <div class="resnet-stage-art mri-stack">
+                                <span></span><span></span><span></span>
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <h5>MRI Tensor</h5>
+                            <p>Preprocessed scan enters the classifier as a normalized RGB tensor.</p>
+                            <div class="resnet-stage-note">The model receives the full scan context before any spatial compression.</div>
+                            <div class="resnet-stage-meta">
+                                <span>256×256×3</span>
+                                <span>scale 0-1</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card stem">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">01</span>
+                                <span class="resnet-stage-type">Stem</span>
+                            </div>
+                            <div class="resnet-stage-art stem-stack">
+                                <span>7×7 Conv</span>
+                                <span>BN + ReLU</span>
+                                <span>3×3 Pool</span>
+                            </div>
+                            <h5>Edge & Texture Lift</h5>
+                            <p>The stem reduces spatial size while extracting low-level tumor boundary cues.</p>
+                            <div class="resnet-stage-note">Large 7x7 filters capture broad intensity gradients, then pooling keeps dominant edges.</div>
+                            <div class="resnet-stage-meta">
+                                <span>64 filters</span>
+                                <span>64×64×64</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card residual">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">02</span>
+                                <span class="resnet-stage-type">Conv2_x</span>
+                            </div>
+                            <div class="resnet-stage-art bottleneck">
+                                <span>1×1</span><span>3×3</span><span>1×1</span>
+                                <b class="skip-arc">skip</b>
+                            </div>
+                            <h5>Fine Anatomy Features</h5>
+                            <p>Three residual bottlenecks retain local details and early anatomical edges.</p>
+                            <div class="resnet-stage-note">Identity addition learns corrections over the original feature map instead of replacing it.</div>
+                            <div class="resnet-stage-meta">
+                                <span>3 blocks</span>
+                                <span>64×64×256</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card residual mid">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">03</span>
+                                <span class="resnet-stage-type">Conv3_x</span>
+                            </div>
+                            <div class="resnet-stage-art feature-map">
+                                <span></span><span></span><span></span><span></span>
+                            </div>
+                            <h5>Regional Patterns</h5>
+                            <p>Four bottleneck blocks learn tissue-region patterns and reduce resolution.</p>
+                            <div class="resnet-stage-note">The first block downsamples to widen receptive field while preserving residual flow.</div>
+                            <div class="resnet-stage-meta">
+                                <span>4 blocks</span>
+                                <span>32×32×512</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card residual deep featured">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">04</span>
+                                <span class="resnet-stage-type">Conv4_x</span>
+                            </div>
+                            <div class="resnet-stage-art deep-stack">
+                                <span>×6</span>
+                                <i class="fas fa-route"></i>
+                            </div>
+                            <h5>Deep Tumor Semantics</h5>
+                            <p>Six residual units form high-level lesion descriptors while skip paths preserve gradient flow.</p>
+                            <div class="resnet-stage-note">This is the main semantic trunk: deeper filters combine shape, texture, and location evidence.</div>
+                            <div class="resnet-stage-meta">
+                                <span>6 blocks</span>
+                                <span>16×16×1024</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card residual abstract">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">05</span>
+                                <span class="resnet-stage-type">Conv5_x</span>
+                            </div>
+                            <div class="resnet-stage-art channels">
+                                <span></span><span></span><span></span><span></span><span></span>
+                            </div>
+                            <h5>Abstract Feature Cube</h5>
+                            <p>The final residual group compresses evidence into a dense 2048-channel representation.</p>
+                            <div class="resnet-stage-note">Channels expand so small lesion patterns can be represented as separable signals.</div>
+                            <div class="resnet-stage-meta">
+                                <span>3 blocks</span>
+                                <span>8×8×2048</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card pooling">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">06</span>
+                                <span class="resnet-stage-type">Pooling</span>
+                            </div>
+                            <div class="resnet-stage-art pool-collapse">
+                                <span class="pool-grid-mini"></span>
+                                <i class="fas fa-compress-arrows-alt"></i>
+                                <span class="pool-vector"></span>
+                            </div>
+                            <h5>Global Evidence Vector</h5>
+                            <p>Average pooling collapses each feature map into one compact classifier-ready vector.</p>
+                            <div class="resnet-stage-note">Every channel votes once, reducing sensitivity to exact tumor location in the scan.</div>
+                            <div class="resnet-stage-meta">
+                                <span>1×1×2048</span>
+                                <span>no spatial grid</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card classifier">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">07</span>
+                                <span class="resnet-stage-type">Head</span>
+                            </div>
+                            <div class="resnet-stage-art dense-head">
+                                <span></span><span></span><span></span>
+                                <b></b>
+                                <span class="out healthy"></span><span class="out tumor"></span>
+                            </div>
+                            <h5>Dense + Softmax</h5>
+                            <p>Dropout-regularized dense layers map the feature vector to two probabilities.</p>
+                            <div class="resnet-stage-note">Dropout reduces overconfidence before the final probability split.</div>
+                            <div class="resnet-stage-meta">
+                                <span>2048 → 2</span>
+                                <span>softmax</span>
+                            </div>
+                        </article>
+
+                        <article class="resnet-stage-card decision">
+                            <div class="resnet-stage-topline">
+                                <span class="resnet-stage-number">08</span>
+                                <span class="resnet-stage-type">Decision</span>
+                            </div>
+                            <div class="resnet-decision-bars">
+                                <div class="decision-row healthy">
+                                    <span>No Tumor</span>
+                                    <div><b style="width: 2.08%"></b></div>
+                                    <em>2.08%</em>
+                                </div>
+                                <div class="decision-row tumor">
+                                    <span>Tumor</span>
+                                    <div><b style="width: 97.92%"></b></div>
+                                    <em>97.92%</em>
                                 </div>
                             </div>
-                            <div class="node-info-v2">
-                                <h5>Initial Features</h5>
-                                <div class="node-specs">
-                                    <span>64 filters</span>
-                                    <span>stride=2</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">64×64×64</div>
-                        </div>
-
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">3 ResBlocks</div>
-                        </div>
-
-                        <!-- Stage 2: Conv2_x -->
-                        <div class="flow-node stage-node stage-2-node">
-                            <div class="stage-badge">Stage 2</div>
-                            <div class="node-visual-v2">
-                                <div class="residual-block-visual">
-                                    <div class="res-main-path">
-                                        <div class="res-layer">1×1</div>
-                                        <div class="res-layer">3×3</div>
-                                        <div class="res-layer">1×1</div>
-                                    </div>
-                                    <div class="skip-connection-visual">
-                                        <div class="skip-line"></div>
-                                        <div class="skip-add">+</div>
-                                    </div>
-                                    <div class="block-count">×3</div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <h5>Low-Level Features</h5>
-                                <div class="node-specs">
-                                    <span>256 features</span>
-                                    <span>3 blocks</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">64×64×256</div>
-                        </div>
-
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">4 ResBlocks</div>
-                        </div>
-
-                        <!-- Stage 3: Conv3_x -->
-                        <div class="flow-node stage-node stage-3-node">
-                            <div class="stage-badge">Stage 3</div>
-                            <div class="node-visual-v2">
-                                <div class="residual-block-visual">
-                                    <div class="res-main-path">
-                                        <div class="res-layer">1×1</div>
-                                        <div class="res-layer">3×3</div>
-                                        <div class="res-layer">1×1</div>
-                                    </div>
-                                    <div class="skip-connection-visual">
-                                        <div class="skip-line"></div>
-                                        <div class="skip-add">+</div>
-                                    </div>
-                                    <div class="block-count">×4</div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <h5>Mid-Level Features</h5>
-                                <div class="node-specs">
-                                    <span>512 features</span>
-                                    <span>4 blocks</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">32×32×512</div>
-                        </div>
-
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">6 ResBlocks</div>
-                        </div>
-
-                        <!-- Stage 4: Conv4_x (Highlighted) -->
-                        <div class="flow-node stage-node stage-4-node highlighted-stage">
-                            <div class="highlight-badge">
-                                <i class="fas fa-star"></i> Deepest Layer
-                            </div>
-                            <div class="stage-badge">Stage 4</div>
-                            <div class="node-visual-v2">
-                                <div class="residual-block-visual deep">
-                                    <div class="res-main-path">
-                                        <div class="res-layer">1×1</div>
-                                        <div class="res-layer">3×3</div>
-                                        <div class="res-layer">1×1</div>
-                                    </div>
-                                    <div class="skip-connection-visual">
-                                        <div class="skip-line"></div>
-                                        <div class="skip-add">+</div>
-                                    </div>
-                                    <div class="block-count">×6</div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <h5>High-Level Features</h5>
-                                <div class="node-specs">
-                                    <span>1024 features</span>
-                                    <span>6 blocks</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">16×16×1024</div>
-                        </div>
-
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">3 ResBlocks</div>
-                        </div>
-
-                        <!-- Stage 5: Conv5_x -->
-                        <div class="flow-node stage-node stage-5-node">
-                            <div class="stage-badge">Stage 5</div>
-                            <div class="node-visual-v2">
-                                <div class="residual-block-visual">
-                                    <div class="res-main-path">
-                                        <div class="res-layer">1×1</div>
-                                        <div class="res-layer">3×3</div>
-                                        <div class="res-layer">1×1</div>
-                                    </div>
-                                    <div class="skip-connection-visual">
-                                        <div class="skip-line"></div>
-                                        <div class="skip-add">+</div>
-                                    </div>
-                                    <div class="block-count">×3</div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <h5>Abstract Features</h5>
-                                <div class="node-specs">
-                                    <span>2048 features</span>
-                                    <span>3 blocks</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">8×8×2048</div>
-                        </div>
-
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">Pool</div>
-                        </div>
-
-                        <!-- Global Average Pooling -->
-                        <div class="flow-node pooling-node">
-                            <div class="node-visual-v2">
-                                <div class="pooling-visual">
-                                    <div class="pool-grid">
-                                        <div class="pool-cell"></div>
-                                        <div class="pool-cell"></div>
-                                        <div class="pool-cell"></div>
-                                        <div class="pool-cell"></div>
-                                    </div>
-                                    <div class="pool-arrow">
-                                        <i class="fas fa-compress-arrows-alt"></i>
-                                    </div>
-                                    <div class="pool-result">
-                                        <div class="single-cell"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <h5>Global Avg Pool</h5>
-                                <div class="node-specs">
-                                    <span>8×8 → 1×1</span>
-                                </div>
-                            </div>
-                            <div class="data-dims">1×1×2048</div>
-                        </div>
-
-                        <div class="flow-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">FC</div>
-                        </div>
-
-                        <!-- Classification Head -->
-                        <div class="flow-node fc-node">
-                            <div class="node-visual-v2">
-                                <div class="fc-visual">
-                                    <div class="fc-layer-group">
-                                        <div class="fc-neurons input-neurons">
-                                            <div class="neuron"></div>
-                                            <div class="neuron"></div>
-                                            <div class="neuron"></div>
-                                            <div class="neuron"></div>
-                                            <div class="neuron-dots">...</div>
-                                        </div>
-                                        <div class="fc-connections"></div>
-                                        <div class="fc-neurons output-neurons">
-                                            <div class="neuron output healthy"></div>
-                                            <div class="neuron output tumor active"></div>
-                                        </div>
-                                    </div>
-                                    <div class="dropout-indicator">
-                                        <span>Dropout 0.3</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <h5>Dense + Softmax</h5>
-                                <div class="node-specs">
-                                    <span>2048 → 2 classes</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flow-arrow final-arrow">
-                            <div class="arrow-line"></div>
-                            <div class="arrow-label">Output</div>
-                        </div>
-
-                        <!-- Output Node -->
-                        <div class="flow-node output-node-v2">
-                            <div class="node-visual-v2">
-                                <div class="classification-output">
-                                    <div class="class-result no-tumor">
-                                        <div class="class-icon"><i class="fas fa-check-circle"></i></div>
-                                        <div class="class-info">
-                                            <span class="class-name">No Tumor</span>
-                                            <div class="prob-bar">
-                                                <div class="prob-fill" style="width: 2.08%"></div>
-                                            </div>
-                                            <span class="prob-value">2.08%</span>
-                                        </div>
-                                    </div>
-                                    <div class="class-result tumor active">
-                                        <div class="class-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                                        <div class="class-info">
-                                            <span class="class-name">Tumor Detected</span>
-                                            <div class="prob-bar">
-                                                <div class="prob-fill" style="width: 97.92%"></div>
-                                            </div>
-                                            <span class="prob-value">97.92%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="node-info-v2">
-                                <span class="node-tag output">PREDICTION</span>
-                                <h5>Binary Output</h5>
-                            </div>
-                        </div>
+                            <h5>Classification Output</h5>
+                            <p>The result decides whether segmentation should run in the two-stage pipeline.</p>
+                            <div class="resnet-stage-note">High tumor confidence routes the scan to the segmentation stage for mask generation.</div>
+                        </article>
                     </div>
                 </div>
 
