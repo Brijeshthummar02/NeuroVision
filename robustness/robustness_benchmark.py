@@ -2,7 +2,7 @@ from pathlib import Path
 import cv2
 import json
 import numpy as np
-
+import glob
 from corruptions import (
     add_gaussian_noise,
     apply_gaussian_blur,
@@ -15,12 +15,13 @@ from corruptions import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # MRI image path
-IMAGE_PATH = BASE_DIR / "images" / "segmentation_predictions.png"
+DATASET_PATH = "MRI Datasets"
 
 # Output directory
 OUTPUT_DIR = BASE_DIR / "benchmark_outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 # Reports directory
 REPORTS_DIR = BASE_DIR / "reports"
 REPORTS_DIR.mkdir(exist_ok=True)
@@ -69,99 +70,90 @@ def evaluate_corruption(name, corrupted_image):
 
 
 # Load original MRI image
-image = cv2.imread(str(IMAGE_PATH))
-
-if image is None:
-    raise ValueError(f"Could not load MRI image: {IMAGE_PATH}")
-
-
-print("\n===== CLEAN MRI TEST =====")
-
-clean_result = simulate_prediction(image)
-
-print("Clean Confidence:", clean_result["confidence"])
-
-print("\n===== ROBUSTNESS TESTING =====")
-
-results = []
-
-# Gaussian Noise
-results.append(
-    evaluate_corruption(
-        "gaussian_noise",
-        add_gaussian_noise(image)
-    )
+image_paths = glob.glob(
+    os.path.join(DATASET_PATH, "**", "*.tif"),
+    recursive=True
 )
 
-# Blur
-results.append(
-    evaluate_corruption(
-        "blur",
-        apply_gaussian_blur(image)
-    )
-)
+image_paths = [
+    p for p in image_paths
+    if "_mask.tif" not in p
+]
 
-# Brightness
-results.append(
-    evaluate_corruption(
-        "brightness",
-        adjust_brightness(image)
-    )
-)
+dataset_results = []
 
-# Low Resolution
-results.append(
-    evaluate_corruption(
-        "low_resolution",
-        reduce_resolution(image)
-    )
-)
+print("\n===== DATASET ROBUSTNESS TEST =====")
+print("Total MRI scans:", len(image_paths))
 
-# Compression Artifacts
-results.append(
-    evaluate_corruption(
-        "compression",
-        add_compression_artifacts(image)
-    )
-)
+for image_path in image_paths:
 
-print("\n===== RESULTS =====")
+    image = cv2.imread(image_path)
+
+    if image is None:
+        continue
+
+    clean_result = simulate_prediction(image)
+
+    results = []
+for image_path in image_paths:
+
+    image = cv2.imread(image_path)
+
+    if image is None:
+        continue
+
+    clean_result = simulate_prediction(image)
+
+    corruptions = {
+        "gaussian_noise": add_gaussian_noise(image),
+        "blur": apply_gaussian_blur(image),
+        "brightness": adjust_brightness(image),
+        "low_resolution": reduce_resolution(image),
+        "compression": add_compression_artifacts(image)
+    }
+
+    for corruption_name, corrupted_image in corruptions.items():
+
+        result = simulate_prediction(corrupted_image)
+
+        confidence_drop = (
+            clean_result["confidence"]
+            - result["confidence"]
+        )
+
+        dataset_results.append({
+            "corruption": corruption_name,
+            "confidence_drop": confidence_drop
+        })
+
+summary = {}
+
+for item in dataset_results:
+
+    corruption = item["corruption"]
+
+    if corruption not in summary:
+        summary[corruption] = []
+
+    summary[corruption].append(
+        item["confidence_drop"]
+    )
 
 final_results = []
 
-for result in results:
-    confidence_drop = (
-        clean_result["confidence"]
-        - result["confidence"]
-    )
+for corruption, values in summary.items():
 
-    robustness_score = (
-        result["confidence"]
-        / clean_result["confidence"]
-    )
+    avg_drop = sum(values) / len(values)
 
-    benchmark_result = {
-        "corruption": result["corruption"],
-        "clean_confidence": clean_result["confidence"],
-        "corrupted_confidence": result["confidence"],
-        "confidence_drop": round(confidence_drop, 4),
-        "robustness_score": round(robustness_score, 4)
-    }
-
-    final_results.append(benchmark_result)
-
-    print(f"""
-Corruption: {result['corruption']}
-Clean Confidence: {clean_result['confidence']}
-Corrupted Confidence: {result['confidence']}
-Confidence Drop: {round(confidence_drop, 4)}
-""")
-
-
-# Save report
-report_path = REPORTS_DIR / "robustness_report.json"
+    final_results.append({
+        "corruption": corruption,
+        "average_confidence_drop": round(avg_drop, 4)
+    })
+os.makedirs("robustness/reports", exist_ok=True)
+report_path = "robustness/reports/robustness_report.json"
 
 with open(report_path, "w", encoding="utf-8") as f:
     json.dump(final_results, f, indent=4)
 
+print(final_results)
 print(f"\nReport saved to: {report_path}")

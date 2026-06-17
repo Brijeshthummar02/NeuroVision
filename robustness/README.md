@@ -33,3 +33,25 @@ Run robustness benchmark:
 
 ```bash
 python robustness_benchmark.py
+```
+## Dataset Benchmark
+
+Total MRI Scans Evaluated: 3954
+
+Corruptions Evaluated:
+- Gaussian Noise
+- Blur
+- Brightness
+- Low Resolution
+- Compression
+## Outputs Generated:
+
+- robustness_report.json
+- robustness_plot.png
+- model_comparison.md
+
+## Observations
+- Benchmarking was performed across the complete MRI dataset.
+- All MRI scans were evaluated under multiple corruption conditions.
+- The framework measures confidence degradation caused by common MRI image corruptions.
+- Results can be used as a baseline for future robustness comparisons and model improvements.
