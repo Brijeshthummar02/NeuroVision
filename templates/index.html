@@ -759,7 +759,7 @@
                                 </div>
                                 <div class="accuracy-badge teal">
                                     <span class="acc-value">92%</span>
-                                    <span class="acc-label">Tversky</span>
+                                    <span class="acc-label" title="A metric that quantifies the similarity between predicted and ground truth segmentation">Tversky</span>
                                 </div>
                             </div>
                             <div class="card-text-area">
@@ -770,9 +770,9 @@
                                     accurate localization.
                                 </p>
                                 <div class="card-tags">
-                                    <span class="tag teal">Encoder-Decoder</span>
-                                    <span class="tag sky">Skip Connections</span>
-                                    <span class="tag beige">Focal Tversky</span>
+                                    <span class="tag teal" title="A network architecture where an encoder extracts features and a decoder reconstructs the spatial resolution.">Encoder-Decoder</span>
+                                    <span class="tag sky" title="Connections in neural networks that skip some layers, helping the network learn identity functions and preserve spatial details.">Skip Connections</span>
+                                    <span class="tag beige" title="Loss function that helps handle class imbalance by penalizing false negatives.">Focal Tversky</span>
                                 </div>
                             </div>
                             <div class="card-visual">
@@ -3398,11 +3398,11 @@
                                 </div>
                                 <div class="config-item">
                                     <span class="config-label">Loss Function</span>
-                                    <span class="config-value">Focal Tversky Loss (α=0.7, β=0.3)</span>
+                                    <span class="config-value" title="Loss function that helps handle class imbalance by penalizing false negatives.">Focal Tversky Loss (α=0.7, β=0.3)</span>
                                 </div>
                                 <div class="config-item">
                                     <span class="config-label">Optimizer</span>
-                                    <span class="config-value">Adam (lr=0.05, ε=0.1)</span>
+                                    <span class="config-value" title="An adaptive learning rate optimization algorithm.">Adam (lr=0.05, ε=0.1)</span>
                                 </div>
                                 <div class="config-item">
                                     <span class="config-label">Activation (Output)</span>
@@ -3418,11 +3418,11 @@
                                 <div class="output-items">
                                     <div class="output-item">
                                         <i class="fas fa-bullseye"></i>
-                                        <span>92% Tversky Index</span>
+                                        <span title="A metric that quantifies the similarity between predicted and ground truth segmentation">92% Tversky Index</span>
                                     </div>
                                     <div class="output-item">
                                         <i class="fas fa-dice"></i>
-                                        <span>0.91 Dice Score</span>
+                                        <span title="A metric used to evaluate the similarity between the predicted segmentation and ground truth.">0.91 Dice Score</span>
                                     </div>
                                     <div class="output-item">
                                         <i class="fas fa-percentage"></i>
