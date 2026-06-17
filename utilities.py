@@ -246,7 +246,10 @@ https://github.com/nabsabraham/focal-tversky-unet/blob/master/losses.py
   year={2018}
 }
 '''
+
 def tversky(y_true, y_pred, smooth=1e-6):
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
     y_true_pos = K.flatten(y_true)
     y_pred_pos = K.flatten(y_pred)
     true_pos   = K.sum(y_true_pos * y_pred_pos)
@@ -264,6 +267,8 @@ def focal_tversky(y_true, y_pred):
     return K.pow((1 - pt_1), gamma)
 
 def dice_coefficient(y_true, y_pred, smooth=1e-6):
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
     y_true_f     = K.flatten(y_true)
     y_pred_f     = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
@@ -276,21 +281,29 @@ def bce_dice_loss(y_true, y_pred):
     return tf.keras.losses.binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 def iou_score(y_true, y_pred, smooth=1e-6):
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
     intersection = K.sum(K.abs(y_true * y_pred), axis=[1, 2, 3])
     union        = K.sum(y_true, [1, 2, 3]) + K.sum(y_pred, [1, 2, 3]) - intersection
     return K.mean((intersection + smooth) / (union + smooth), axis=0)
 
 def sensitivity(y_true, y_pred):
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
     true_positives    = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
 def specificity(y_true, y_pred):
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
     true_negatives    = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
     possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
     return true_negatives / (possible_negatives + K.epsilon())
 
 def precision_metric(y_true, y_pred):
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
     true_positives    = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
     return true_positives / (predicted_positives + K.epsilon())

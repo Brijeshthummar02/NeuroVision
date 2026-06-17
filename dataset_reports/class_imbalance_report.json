@@ -2,25 +2,25 @@
   "class_summary": {
     "0": {
       "label": "No Tumor",
-      "count": 2505,
-      "percentage": 64.6
+      "count": 2556,
+      "percentage": 65.05
     },
     "1": {
       "label": "Tumor Present",
       "count": 1373,
-      "percentage": 35.4
+      "percentage": 34.95
     }
   },
-  "imbalance_ratio": 1.824,
+  "imbalance_ratio": 1.862,
   "severity": "MODERATE",
   "recommended_class_weights": {
-    "0": 0.7741,
-    "1": 1.4122
+    "0": 0.7686,
+    "1": 1.4308
   },
   "suggestions": [
-    "Pass class_weight={0: 0.7741, 1: 1.4122} to model.fit().",
+    "Pass class_weight={0: 0.7686, 1: 1.4308} to model.fit().",
     "Apply random oversampling on the minority class.",
     "Use stratified train/val/test splits (stratify=df['mask']).",
     "Evaluate with F1-score / PR-AUC, not just accuracy."
   ]
-} 
+}

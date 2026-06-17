@@ -355,9 +355,16 @@ def load_models():
                     json_savedModel = json_file.read()
                 json_savedModel = json_savedModel.replace('"class_name": "Model"', '"class_name": "Functional"')
                 secondary_segmentation = tf.keras.models.model_from_json(json_savedModel, custom_objects=custom_objects)
-                # Use same weights if no separate weights file exists
-                if os.path.exists('weights_seg.hdf5'):
+                # Load weights
+                weights_loaded = False
+                if os.path.exists('ResUNet-weights.keras'):
+                    secondary_segmentation.load_weights('ResUNet-weights.keras')
+                    weights_loaded = True
+                elif os.path.exists('weights_seg.hdf5'):
                     secondary_segmentation.load_weights('weights_seg.hdf5')
+                    weights_loaded = True
+                
+                if weights_loaded:
                     # Compile EXACTLY like notebook
                     secondary_segmentation.compile(
                         optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),

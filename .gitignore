@@ -12,6 +12,8 @@ classifier-resnet-weights.hdf5
 ResUNet-weights.hdf5
 weights_seg.hdf5
 weights.hdf5
+*.keras
+*.h5
 TCGA*/
 
 # Runtime data — may contain real user data, never commit
