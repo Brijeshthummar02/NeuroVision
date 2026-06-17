@@ -1,6 +1,17 @@
 # NeuroVision v2.0
 
-Brain tumor detection and segmentation from MRI scans using a two-stage deep learning pipeline — EfficientNetB4 for classification, Attention ResUNet with CBAM + ASPP for segmentation.
+## Overview of website
+
+
+https://github.com/user-attachments/assets/d84861b6-b750-434e-9cca-4d6990a97d5d
+
+## Scans 
+
+
+https://github.com/user-attachments/assets/c1da5dd5-e7fe-4def-bbcc-c200d172ea44
+
+
+A **state-of-the-art** deep learning pipeline for detecting and localizing brain tumors in MRI scans using **EfficientNetB4/ResNet-50** for classification and **Attention ResUNet v2.0** with **CBAM + ASPP** for precise segmentation.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python)
 ![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-orange?logo=tensorflow)
@@ -10,7 +21,25 @@ Brain tumor detection and segmentation from MRI scans using a two-stage deep lea
 ![Dice](https://img.shields.io/badge/Dice_Score-0.94+-blue)
 [![codecov](https://codecov.io/github/Brijeshthummar02/NeuroVision/graph/badge.svg?token=EW47CHMM7R)](https://codecov.io/github/Brijeshthummar02/NeuroVision)
 
-> ⚠️ **Research use only.** This project is not intended for clinical diagnosis. It has not undergone FDA/CE validation or regulatory review.
+---
+---
+
+##  Table of Contents
+
+- [What's New in v2.0](#-whats-new-in-v20)
+- [Key Features](#-key-features)
+- [Model Performance](#-model-performance)
+- [Architecture](#-architecture-v20)
+- [Dataset](#-dataset)
+- [Quick Start](#-quick-start)
+- [Project Structure](#-project-structure)
+- [Training Configuration](#-training-configuration)
+- [API Endpoints](#-api-endpoints)
+- [Tech Stack](#️-tech-stack)
+- [References](#-references)
+- [License](#-license)
+
+---
 
 ---
 
@@ -404,6 +433,8 @@ image_ids, masks, has_mask = prediction(test_df, model, model_seg, use_tta=False
 - Chen et al. (2018) — [DeepLabV3+ / ASPP](https://arxiv.org/abs/1802.02611)
 
 ---
+
+
 
 ## Contributors
 
