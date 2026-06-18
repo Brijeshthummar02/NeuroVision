@@ -3974,8 +3974,7 @@ section {
     }
 }
 
-/* ==========================================================
-   ADVANCED CNN ARCHITECTURE PIPELINE V2 - REDESIGNED
+/* ===================================================   ADVANCED CNN ARCHITECTURE PIPELINE V2 - REDESIGNED
    ========================================================== */
 
 /* Section Base */
@@ -11019,8 +11018,7 @@ section {
     }
 }
 
-/* ============================================================
-   RESUNET DEEP DIVE SECTION STYLES
+/* =====================================================   RESUNET DEEP DIVE SECTION STYLES
    ============================================================ */
 
 /* ResUNet Deep Dive Container */
@@ -11945,11 +11943,9 @@ section {
     }
 }
 
-/* ============================================
-   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
+/* =====================================   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
    ============================================ */
-/* ============================================
-   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
+/* =====================================   U-NET ARCHITECTURE VISUAL V2 - REDESIGNED
    ============================================ */
 
 .unet-architecture-visual-v2 {
@@ -12450,8 +12446,7 @@ section {
     padding: 0 3px;
 }
 
-/* ============================================
-   BOTTLENECK BLOCK - FIXED (NO HUGE MARGIN)
+/* =====================================   BOTTLENECK BLOCK - FIXED (NO HUGE MARGIN)
    ============================================ */
 .bottleneck-block {
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
@@ -15642,8 +15637,82 @@ section {
         flex: 1;
     }
 }
-/* ============================================
-   FIXED U-NET ARCHITECTURE V3 - ATTENTION RESUNET
+
+/* Password Strength Indicator */
+.password-strength-container {
+    margin-top: 0.65rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--gray-50);
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+    animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.strength-bars {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.strength-bar {
+    height: 5px;
+    flex: 1;
+    background-color: var(--gray-200);
+    border-radius: 999px;
+    transition: all 0.3s ease;
+}
+
+.strength-bar.too-weak {
+    background-color: #ef4444;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.12);
+}
+
+.strength-bar.weak {
+    background-color: #fb923c;
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.12);
+}
+
+.strength-bar.fair {
+    background-color: #facc15;
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.12);
+}
+
+.strength-bar.strong {
+    background-color: #3b82f6;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+.strength-bar.very-strong {
+    background-color: #22c55e;
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.12);
+}
+
+.strength-text-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.strength-label-prefix {
+    color: var(--gray-500);
+}
+
+.strength-label {
+    font-weight: 600;
+    color: var(--gray-800);
+    transition: color 0.3s ease;
+}
+
+.strength-hint {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-top: 0.35rem;
+    margin-bottom: 0;
+    line-height: 1.4;
+}
+/* =====================================   FIXED U-NET ARCHITECTURE V3 - ATTENTION RESUNET
    ============================================ */
 
 .segmentation-visual-v3 {

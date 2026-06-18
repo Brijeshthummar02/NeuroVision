@@ -1,4 +1,6 @@
 venv/
+node_modules/
+src/
 __pycache__/
 *.py[cod]
 *$py.class
