@@ -1439,7 +1439,7 @@ function createAuthModal() {
                     <div class="auth-input-wrapper">
                         <i class="fas fa-lock"></i>
                         <input type="password" id="loginPassword" placeholder="Enter your password" required>
-                        <button type="button" class="password-toggle" onclick="togglePassword('loginPassword')">
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" onclick="togglePassword('loginPassword')">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
@@ -1479,7 +1479,7 @@ function createAuthModal() {
                     <div class="auth-input-wrapper">
                         <i class="fas fa-lock"></i>
                         <input type="password" id="signupPassword" placeholder="Create a password (min 6 chars)" required minlength="6">
-                        <button type="button" class="password-toggle" onclick="togglePassword('signupPassword')">
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" onclick="togglePassword('signupPassword')">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
@@ -1507,7 +1507,7 @@ function createAuthModal() {
                     <div class="auth-input-wrapper">
                         <i class="fas fa-lock"></i>
                         <input type="password" id="signupConfirmPassword" placeholder="Confirm your password" required>
-                        <button type="button" class="password-toggle" onclick="togglePassword('signupConfirmPassword')">
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" onclick="togglePassword('signupConfirmPassword')">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
@@ -1539,9 +1539,9 @@ function createAuthModal() {
 
 function updatePasswordStrength(password) {
     const container = document.getElementById('password-strength-container');
-    const label = document.getElementById('strength-label');
-    const hint = document.getElementById('strength-hint');
-    const bars = document.querySelectorAll('.strength-bar');
+    const label = container ? container.querySelector('#strength-label') : null;
+    const hint = container ? container.querySelector('#strength-hint') : null;
+    const bars = container ? container.querySelectorAll('.strength-bar') : [];
     
     if (!password) {
         if (container) container.style.display = 'none';
@@ -1573,21 +1573,15 @@ function updatePasswordStrength(password) {
         label.style.color = currentLevel.color;
     }
     
-    // Update bars
     bars.forEach((bar, index) => {
-        bar.className = 'strength-bar'; // Reset class
+        bar.className = 'strength-bar';
         if (index <= score) {
             bar.classList.add(currentLevel.class);
         }
     });
     
-    // Show/hide hint
     if (hint) {
-        if (score <= 1) {
-            hint.style.display = 'block';
-        } else {
-            hint.style.display = 'none';
-        }
+        hint.style.display = score <= 1 ? 'block' : 'none';
     }
 }
 
@@ -1601,16 +1595,26 @@ function closeAuthModal() {
 
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
-    const icon = input.parentElement.querySelector('.password-toggle i');
+    if (!input) return;
+    
+    const wrapper = input.parentElement;
+    const toggleButton = wrapper ? wrapper.querySelector('.password-toggle') : null;
+    const icon = wrapper ? wrapper.querySelector('.password-toggle i') : null;
+    
+    if (!toggleButton || !icon) return;
     
     if (input.type === 'password') {
         input.type = 'text';
         icon.classList.remove('fa-eye');
         icon.classList.add('fa-eye-slash');
+        toggleButton.setAttribute('aria-label', 'Hide password');
+        toggleButton.setAttribute('aria-pressed', 'true');
     } else {
         input.type = 'password';
         icon.classList.remove('fa-eye-slash');
         icon.classList.add('fa-eye');
+        toggleButton.setAttribute('aria-label', 'Show password');
+        toggleButton.setAttribute('aria-pressed', 'false');
     }
 }
 
