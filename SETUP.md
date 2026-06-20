@@ -129,27 +129,12 @@ source venv/bin/activate
 ```bash
 # Install web application dependencies
 pip install -r requirements-web.txt
+
+# If you also want notebook dependencies:
+pip install -r requirements.txt
 ```
 
-### Step 4: Configure Environment Variables
-
-Copy the example file and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-On Windows (Command Prompt): `copy .env.example .env`
-
-Edit `.env` and set at least:
-
-- `FLASK_SECRET_KEY` — a long random string for Flask sessions
-- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — from [Cloudinary](https://cloudinary.com/)
-- `MONGO_URI` (optional) — MongoDB Atlas connection string; omit to use local JSON storage
-
-Never commit your `.env` file.
-
-### Step 5: Verify Model Files
+### Step 4: Verify Model Files
 
 Ensure these files exist in the project root:
 
@@ -163,7 +148,28 @@ Ensure these files exist in the project root:
 
 If any model files are missing, you'll need to train them first using `index.ipynb`.
 
-### Step 6: Run the Application
+### Dataset Download & Placement
+
+⚠️ **The TCGA dataset folders are not included in this repository due to size limitations.**
+
+Download the dataset and pretrained weights using the provided links and place all extracted `TCGA_*` folders directly in the project root.
+
+📘 For the complete project setup, troubleshooting, and testing instructions, please refer to `SETUP.md`.
+
+**Important:** Do not place them inside an additional parent folder such as `dataset/` or `downloads/`.
+
+Example:
+
+```text
+MRI-scan-detection-CNN-main/
+├── TCGA_HT_7694_19950404/
+├── TCGA_CS_4941_19960909/
+├── data.csv
+├── data_mask.csv
+├── app.py
+└── ...
+```
+### Step 5: Run the Application
 
 ```bash
 python app.py
@@ -189,7 +195,7 @@ Loading segmentation model...
 ============================================================
 ```
 
-### Step 7: Open in Browser
+### Step 6: Open in Browser
 
 Open your web browser and navigate to:
 
@@ -263,7 +269,7 @@ MRI-scan-detection-CNN-main/
 │   ├── data_mask.csv                   # Dataset metadata
 │   └── data.csv                        # Image paths
 │
-├── 📊 Dataset (MRI Scans)
+├── 📊 Dataset (MRI Scans - Downloaded Separately)
 │   ├── TCGA_CS_XXXX_YYYYMMDD/          # Patient directories
 │   ├── TCGA_DU_XXXX_YYYYMMDD/          # (110 total)
 │   └── ...
@@ -433,12 +439,53 @@ GET /api/stats
 
 ## 🐛 Troubleshooting
 
+## ⚠️ Important Dataset Setup
+
+The `TCGA_*` folders are **not included in this repository** due to their large size.
+
+Please download the dataset using the links provided above and place all extracted `TCGA_*` folders directly in the project root directory.
+
+❌ Incorrect:
+
+project/
+└── dataset/
+    └── TCGA_HT_7694_19950404/
+
+✅ Correct:
+
+project/
+├── TCGA_HT_7694_19950404/
+├── TCGA_CS_4941_19960909/
+├── app.py
+├── data.csv
+└── data_mask.csv
+
+### Dataset Path Errors
+
+If OpenCV cannot load images:
+```text
+cv2.imread() returns None
+(-215:Assertion failed) !_src.empty() in function 'cv::cvtColor'
+```python
+import os
+
+if not os.path.exists(image_path):
+    print(f"Missing file: {image_path}")
+```
+
+**Check the following:**
+
+- Ensure all `TCGA_*` folders are placed directly in the project root.
+- Ensure the dataset was extracted correctly.
+- Ensure CSV paths match the downloaded folder names.
+- Ensure the dataset is not inside an additional parent directory after extraction.
+
 ### Issue: Models not loading
 
 **Error:**
-```
+
 ❌ Failed to load models. Please check that model files exist.
-```
+
 
 **Solution:**
 1. Verify all model files exist in the project root
