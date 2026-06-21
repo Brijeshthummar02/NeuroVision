@@ -79,6 +79,7 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
 app.config['USE_TTA'] = True  # Enable Test Time Augmentation for higher accuracy
 app.config['USE_ENSEMBLE'] = True  # Enable ensemble predictions
 app.config['CONFIDENCE_THRESHOLD'] = 0.5  # Minimum confidence for tumor detection
+app.config['GLAUCOMA_CONFIDENCE_THRESHOLD'] = 0.5  # Minimum confidence for glaucoma detection
 
 # MongoDB Configuration (optional — falls back to local JSON storage)
 MONGO_URI = os.getenv('MONGO_URI')
@@ -228,6 +229,8 @@ classification_model = None  # Primary classification model
 segmentation_model = None    # Primary segmentation model
 secondary_classifier = None  # Secondary classifier (classifier-resnet-weights.keras)
 secondary_segmentation = None  # Secondary segmentation model
+glaucoma_model = None        # Glaucoma detection model (separate from brain tumor models)
+glaucoma_model_loaded = False
 models_loaded = False
 
 
@@ -375,8 +378,31 @@ def load_models():
         print(f"   - Segmentation models loaded: {len(segmentation_models)}")
         print(f"   - TTA enabled: {app.config['USE_TTA']}")
         print(f"   - Ensemble enabled: {app.config['USE_ENSEMBLE']}")
-        return True
         
+        # ============================================================
+        # LOAD GLAUCOMA DETECTION MODEL (separate from brain tumor models)
+        # Uses a dedicated model file — NOT shared with cataract/other conditions
+        # ============================================================
+        glaucoma_model_path = os.getenv('GLAUCOMA_MODEL_PATH', 'glaucoma_model.h5')
+        if os.path.exists(glaucoma_model_path):
+            print("Loading glaucoma detection model...")
+            try:
+                global glaucoma_model, glaucoma_model_loaded
+                glaucoma_model = tf.keras.models.load_model(
+                    glaucoma_model_path,
+                    custom_objects=custom_objects
+                )
+                glaucoma_model_loaded = True
+                print("✓ Glaucoma detection model loaded successfully")
+            except Exception as e:
+                print(f"? Could not load glaucoma model: {str(e)}")
+                glaucoma_model = None
+                glaucoma_model_loaded = False
+        else:
+            print(f"⚠ Glaucoma model not found at '{glaucoma_model_path}' — glaucoma endpoint will be unavailable")
+        
+        return True
+
     except Exception as e:
         print(f"Error loading models: {str(e)}")
         import traceback
@@ -529,6 +555,23 @@ def post_process_segmentation(mask, min_area=100):
     cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
     
     return cleaned_mask
+
+
+def preprocess_fundus_image(image):
+    """Preprocess retinal fundus image for glaucoma detection model.
+    
+    Resizes to model input size, normalizes, and applies CLAHE
+    for better vessel/optic disc visibility.
+    """
+    img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    img = cv2.resize(img, (224, 224))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    img_lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+    img_lab[:, :, 0] = clahe.apply(img_lab[:, :, 0])
+    img = cv2.cvtColor(img_lab, cv2.COLOR_LAB2RGB)
+    img = img.astype(np.float32) / 255.0
+    img = np.expand_dims(img, axis=0)
+    return img
 
 
 def predict_tumor(image_path, img_original=None, use_tta=None):
@@ -947,6 +990,72 @@ def predict():
         return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
 
 
+@app.route('/api/predict/glaucoma', methods=['POST'])
+def predict_glaucoma():
+    """Handle fundus image upload and glaucoma prediction.
+
+    Uses a dedicated glaucoma detection model, independent of
+    the brain tumor ensemble — NOT sharing weights with any
+    other condition model (fixes issue #56).
+    """
+
+    if not glaucoma_model_loaded:
+        return jsonify({
+            'error': 'Glaucoma model not available. Contact administrator.',
+            'code': 'GLAUCOMA_MODEL_UNAVAILABLE'
+        }), 503
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({
+            'error': 'Invalid file type. Allowed types: PNG, JPG, JPEG'
+        }), 400
+
+    try:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        img_original = cv2.imread(filepath)
+        if img_original is None:
+            img_pil = Image.open(filepath)
+            img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+        _, img_buffer = cv2.imencode('.png', img_original)
+        img_base64 = base64.b64encode(img_buffer).decode('utf-8')
+        os.remove(filepath)
+
+        img_input = preprocess_fundus_image(img_original)
+        pred = glaucoma_model.predict(img_input, verbose=0)[0]
+        glaucoma_prob = float(pred[0] if pred.ndim == 1 else pred[0][1])
+        normal_prob = 1.0 - glaucoma_prob
+        has_glaucoma = glaucoma_prob >= app.config['GLAUCOMA_CONFIDENCE_THRESHOLD']
+
+        return jsonify({
+            'has_glaucoma': has_glaucoma,
+            'confidence': max(glaucoma_prob, normal_prob),
+            'scores': {
+                'glaucoma': round(glaucoma_prob, 4),
+                'normal': round(normal_prob, 4)
+            },
+            'analysis_method': {
+                'model': 'GlaucomaNet',
+                'model_source': 'dedicated_glaucoma_model'
+            },
+            'original_image': f"data:image/png;base64,{img_base64}",
+            'disclaimer': 'This AI-generated analysis is for screening purposes only and should not replace professional medical diagnosis. Please consult an ophthalmologist for proper evaluation.'
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'Glaucoma prediction failed: {str(e)}'}), 500
+
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """Return enhanced project statistics including model information"""
@@ -962,11 +1071,13 @@ def get_stats():
             'ensemble_enabled': app.config['USE_ENSEMBLE'],
             'classification_models': len(classification_models),
             'segmentation_models': len(segmentation_models),
-            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD']
+            'confidence_threshold': app.config['CONFIDENCE_THRESHOLD'],
+            'glaucoma_model_loaded': glaucoma_model_loaded
         },
         'models_info': {
             'classification': [name for name, _ in classification_models],
-            'segmentation': [name for name, _ in segmentation_models]
+            'segmentation': [name for name, _ in segmentation_models],
+            'glaucoma': 'GlaucomaNet (dedicated model)' if glaucoma_model_loaded else 'unavailable'
         }
     }
     return jsonify(stats)
@@ -1507,10 +1618,15 @@ if __name__ == '__main__':
         print("✓ All models loaded successfully!")
         print(f"✓ Classification ensemble: {len(classification_models)} model(s)")
         print(f"✓ Segmentation ensemble: {len(segmentation_models)} model(s)")
+        if glaucoma_model_loaded:
+            print("✓ Glaucoma detection model loaded (dedicated, not shared with other conditions)")
+        else:
+            print("⚠ Glaucoma detection model not loaded — endpoint will return 503")
         print("\n🚀 Starting Flask server...")
         print("📍 Access the application at: http://localhost:5000")
         print("📊 API Health Check: http://localhost:5000/api/health")
         print("⚙️  API Configuration: http://localhost:5000/api/config")
+        print("👁  Glaucoma Detection: http://localhost:5000/api/predict/glaucoma")
         print("🔐 Authentication: http://localhost:5000/api/auth/status")
         print("🗄️  Database: MongoDB")
         print("☁️  Image Storage: Cloudinary")
