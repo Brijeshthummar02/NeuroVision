@@ -63,7 +63,7 @@ from utilities import (
     iou_score, sensitivity, specificity, precision_metric,
     predict_with_tta_classification, predict_with_tta_segmentation
 )
-
+from analysis.tumor_analysis_pipeline import run_tumor_analysis
 # Initialize Flask app
 app = Flask(__name__)
 # Restrict CORS to explicit origins — set CORS_ORIGINS in .env (comma-separated)
@@ -604,11 +604,11 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
         # Post-process mask for cleaner results
         mask_binary = post_process_segmentation(mask_raw)
         
-        # Calculate comprehensive tumor metrics
-        tumor_pixels = int(np.sum(mask_binary))
-        total_pixels = mask_binary.shape[0] * mask_binary.shape[1]
-        tumor_percentage = (tumor_pixels / total_pixels) * 100
-        
+        analysis_result = run_tumor_analysis(mask_binary)
+        tumor_pixels = analysis_result["tumor_pixels"]
+        total_pixels = analysis_result["total_pixels"]
+        tumor_percentage = analysis_result["tumor_percentage"]
+        result["tumor_analysis"] = analysis_result
         # Calculate tumor bounding box and centroid
         if tumor_pixels > 0:
             y_indices, x_indices = np.where(mask_binary == 1)
@@ -663,26 +663,29 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
             'total_pixels': total_pixels,
             'bounding_box': bbox,
             'centroid': centroid,
-            'mask_confidence': _mask_conf
+            'mask_confidence': _mask_conf,
+            'region_count': analysis_result['region_count'],
+            'multiple_regions': analysis_result['multiple_regions'],
+            'largest_region': analysis_result['largest_region'],
+            'shape_complexity': analysis_result['shape_complexity'],
+            'spread_pattern': analysis_result['spread_pattern'],
+            'severity': analysis_result['severity'],
+            'comparison_ready': analysis_result['comparison_ready']
+
+        }
+
+        severity = analysis_result["severity"]
+
+        # Calculate severity 
+        severity_map = {
+            "Small":("#3b82f6","Monitor"),
+            "Medium":("#10b981","Routine"),
+            "Large":("#f59e0b","Priority"),
+            "Critical":("#dc2626","Immediate")
+
         }
         
-        # Calculate severity assessment
-        if tumor_percentage > 10:
-            severity = 'High'
-            severity_color = '#dc2626'
-            urgency = 'Immediate'
-        elif tumor_percentage > 5:
-            severity = 'Moderate'
-            severity_color = '#f59e0b'
-            urgency = 'Priority'
-        elif tumor_percentage > 1:
-            severity = 'Low'
-            severity_color = '#10b981'
-            urgency = 'Routine'
-        else:
-            severity = 'Minimal'
-            severity_color = '#3b82f6'
-            urgency = 'Monitor'
+        severity_color,urgency = severity_map[severity]
         
         # Determine tumor location based on centroid
         img_center_x, img_center_y = 128, 128  # Center of 256x256 image
@@ -740,38 +743,34 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
             estimated_area_mm2 = 0
         
         # Generate detailed recommendations based on severity
-        if severity == 'High':
-            recommendations = [
-                'Immediate consultation with a neuro-oncologist recommended',
-                'Additional imaging (contrast-enhanced MRI, PET scan) advised',
-                'Tumor board review for treatment planning',
-                'Consider surgical evaluation for biopsy or resection',
-                'Regular monitoring every 2-4 weeks during treatment'
-            ]
-        elif severity == 'Moderate':
-            recommendations = [
-                'Schedule consultation with neurologist within 1-2 weeks',
-                'Consider additional contrast-enhanced MRI',
-                'Baseline cognitive assessment recommended',
-                'Follow-up scan in 4-6 weeks',
-                'Discuss treatment options with specialist'
-            ]
-        elif severity == 'Low':
-            recommendations = [
-                'Follow-up with primary care physician',
-                'Repeat MRI in 3-6 months for monitoring',
-                'Document any new neurological symptoms',
-                'Maintain regular health check-ups',
-                'Consider specialist referral if symptoms develop'
-            ]
-        else:
-            recommendations = [
-                'Continue routine health monitoring',
-                'Report any new symptoms to healthcare provider',
-                'Follow-up scan in 6-12 months if needed',
-                'Maintain healthy lifestyle',
-                'No immediate intervention required'
-            ]
+        if severity == 'Critical':
+              recommendations = [
+                'Immediate consultation with neuro-oncologist recommended',
+                'Urgent advanced imaging required',
+                'Tumor board review advised'
+              ]
+
+        elif severity == 'Large':
+             recommendations = [
+                'Specialist consultation within 1-2 weeks',
+                'Contrast-enhanced MRI recommended',
+                'Follow-up monitoring required'
+              ]
+
+        elif severity == 'Medium':
+             recommendations = [
+                'Routine neurological follow-up',
+                'Repeat scan in 4-6 weeks',
+                'Monitor symptoms carefully'
+              ]
+
+        else:  # Small
+             recommendations = [
+                'Continue observation',
+                'Periodic scan follow-up',
+                'Routine monitoring'
+              ]
+        
         
         result['severity_assessment'] = {
             'level': severity,
@@ -801,6 +800,7 @@ def predict_tumor(image_path, img_original=None, use_tta=None):
                     'area_mm2': f"{estimated_area_mm2:.1f}"
                 },
                 'shape_assessment': shape,
+                'spread_pattern': analysis_result['spread_pattern'],
                 'location': location,
                 'location_risk': location_risk
             },
