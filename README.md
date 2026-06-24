@@ -233,6 +233,21 @@ TumorVision-2StageAI/
 
 The training notebook reads scan paths relative to the project root, so the folder names and location need to match exactly.
 
+### Standardization & Preprocessing
+
+To normalize the dataset into a single consistent format (uniform 256×256 RGB
+images, binary masks, and corrected `patient_id` / labeling metadata) before
+training, run:
+
+```bash
+python dataset_standardize.py
+```
+
+This produces a canonical manifest (`data_mask_standardized.csv`) and a
+standardization report without modifying the originals. The full pipeline —
+image dimensions, file formats, mask encoding, and metadata conventions — is
+documented in [`PREPROCESSING.md`](PREPROCESSING.md).
+
 ---
 
 ## Project Structure
