@@ -57,7 +57,7 @@ CSV_PATH       = "data_mask.csv"            # source manifest in the repo root
 IMG_ROOT       = "./"                        # images live as ./TCGA_xxx/TCGA_xxx_1.tif
 OUTPUT_DIR     = "dataset_standardized"      # standardized images + masks go here
 REPORT_DIR     = "dataset_reports"           # reuse the existing reports folder
-MANIFEST_PATH  = "data_mask_standardized.csv"
+MANIFEST_PATH  = os.path.join(os.getcwd(), OUTPUT_DIR, "data_mask_standardized.csv")
 
 TARGET_SIZE    = (256, 256)   # canonical resolution as (width, height) — matches model input
 IMAGE_EXT      = ".png"       # canonical lossless on-disk format
@@ -352,7 +352,7 @@ def main():
 
     # write the canonical manifest
     manifest.to_csv(MANIFEST_PATH, index=False)
-    print(f"\n  ✓ Manifest → {MANIFEST_PATH}  ({len(manifest):,} rows)")
+    print(f"\n  Manifest generated at -> {MANIFEST_PATH}  ({len(manifest):,} rows)")
 
     # assemble + write the JSON report
     report = {
@@ -391,9 +391,9 @@ def main():
     report_path = os.path.join(REPORT_DIR, "standardization_report.json")
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
-    print(f"  ✓ Report   → {report_path}")
+    print(f"  Report generated at -> {report_path}")
 
-    print(f"\n✅  Standardization complete. Manifest: {MANIFEST_PATH}\n")
+    print(f"\n  Standardization complete. Manifest: {MANIFEST_PATH}\n")
 
 
 if __name__ == "__main__":
