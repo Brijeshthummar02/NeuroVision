@@ -2,12 +2,12 @@
 Dataset Standardization & Normalization Pipeline
 ================================================
 
-Companion to `dataset_quality.py`. Where the quality script *audits* the
-dataset, this script *normalizes* it so every sample shares the same
-resolution, file format, channel layout, mask encoding, and metadata /
-labeling conventions before training.
+Companion to `dataset_quality.py`. 
 
-It does two things, and the second one is optional:
+Where the quality script *audits* the dataset, this script *normalizes* it so every sample shares the same
+resolution, file format, channel layout, mask encoding, and metadata / labeling conventions before training.
+
+It does two things (with the second one being optional):
 
 1. Manifest standardization (always runs, no images required)
      - Re-derives the canonical `patient_id` from the image path. The

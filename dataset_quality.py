@@ -1,10 +1,7 @@
 import os
 import json
-import csv
 import warnings
-from collections import Counter, defaultdict
 
-import numpy as np
 import pandas as pd
 import cv2
 import matplotlib
