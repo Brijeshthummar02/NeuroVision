@@ -10,11 +10,17 @@ def test_derive_patient_id_uses_folder():
     path = "TCGA_CS_4941_19960909/TCGA_CS_4941_19960909_1.tif"
     assert ds.derive_patient_id(path) == "TCGA_CS_4941_19960909"
     # windows separators are handled too
-    assert ds.derive_patient_id("TCGA_DU_5849_19950405\\slice_3.tif") == "TCGA_DU_5849_19950405"
+    assert (
+        ds.derive_patient_id("TCGA_DU_5849_19950405\\slice_3.tif")
+        == "TCGA_DU_5849_19950405"
+    )
 
 
 def test_derive_slice_index():
-    assert ds.derive_slice_index("TCGA_CS_4941_19960909/TCGA_CS_4941_19960909_34.tif") == 34
+    assert (
+        ds.derive_slice_index("TCGA_CS_4941_19960909/TCGA_CS_4941_19960909_34.tif")
+        == 34
+    )
     assert ds.derive_slice_index("foo/bar_baz.tif") is None
 
 

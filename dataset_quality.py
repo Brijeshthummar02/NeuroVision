@@ -5,6 +5,7 @@ import warnings
 import pandas as pd
 import cv2
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -12,34 +13,32 @@ import matplotlib.patches as mpatches
 warnings.filterwarnings("ignore")
 
 # PATHS  (all relative to project root)
-CSV_PATH    = "data_mask.csv"   # already in the repo root
-IMG_ROOT    = "./"              # images live as  ./TCGA_xxx/TCGA_xxx_1.tif
-OUTPUT_DIR  = "dataset_reports"
+CSV_PATH = "data_mask.csv"  # already in the repo root
+IMG_ROOT = "./"  # images live as  ./TCGA_xxx/TCGA_xxx_1.tif
+OUTPUT_DIR = "dataset_reports"
 
 
 # STEP 1 — Dataset Statistics
 def generate_statistics(df: pd.DataFrame) -> dict:
-    total   = len(df)
-    counts  = df["mask"].value_counts().to_dict()
+    total = len(df)
+    counts = df["mask"].value_counts().to_dict()
 
     # per-patient breakdown
-    patient_per_class = (
-        df.groupby("mask")["patient_id"].nunique().to_dict()
-    )
+    patient_per_class = df.groupby("mask")["patient_id"].nunique().to_dict()
 
     # data-integrity checks
-    duplicate_images   = int(df["image_path"].duplicated().sum())
-    empty_image_paths  = int(df["image_path"].str.strip().eq("").sum())
-    invalid_mask_vals  = int((~df["mask"].isin([0, 1])).sum())
+    duplicate_images = int(df["image_path"].duplicated().sum())
+    empty_image_paths = int(df["image_path"].str.strip().eq("").sum())
+    invalid_mask_vals = int((~df["mask"].isin([0, 1])).sum())
 
     stats = {
-        "total_samples"        : total,
-        "unique_patients"      : int(df["patient_id"].nunique()),
-        "mask_distribution"    : {str(k): int(v) for k, v in counts.items()},
-        "patients_per_class"   : {str(k): int(v) for k, v in patient_per_class.items()},
+        "total_samples": total,
+        "unique_patients": int(df["patient_id"].nunique()),
+        "mask_distribution": {str(k): int(v) for k, v in counts.items()},
+        "patients_per_class": {str(k): int(v) for k, v in patient_per_class.items()},
         "duplicate_image_paths": duplicate_images,
         "empty_image_path_rows": empty_image_paths,
-        "invalid_mask_values"  : invalid_mask_vals,
+        "invalid_mask_values": invalid_mask_vals,
     }
 
     print("\n── Dataset Statistics ──────────────────────────")
@@ -58,8 +57,8 @@ def generate_statistics(df: pd.DataFrame) -> dict:
 def _is_corrupted(img_path: str, mask_path: str) -> tuple[bool, str]:
     """
     Returns (is_corrupted, reason).
-    Checks: file exists, OpenCV can read it, image is not blank. 
-    """ 
+    Checks: file exists, OpenCV can read it, image is not blank.
+    """
     for label, path in [("image", img_path), ("mask", mask_path)]:
         full = os.path.join(IMG_ROOT, path)
         if not os.path.isfile(full):
@@ -69,7 +68,7 @@ def _is_corrupted(img_path: str, mask_path: str) -> tuple[bool, str]:
             return True, f"{label}_unreadable"
         if label == "image" and img.std() < 1.0:
             return True, f"{label}_blank"
-    return False, "" 
+    return False, ""
 
 
 def filter_corrupted(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
@@ -79,10 +78,10 @@ def filter_corrupted(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
     have the CSV), file-not-found rows are flagged but the clean CSV still
     keeps them — set SKIP_MISSING=True below to remove them too.
     """
-    SKIP_MISSING = False   # set True if you want to drop missing-file rows
+    SKIP_MISSING = False  # set True if you want to drop missing-file rows
 
     removed = []
-    keep    = []
+    keep = []
 
     print("\n── Scanning for Corrupted Samples ──────────────")
     print(f"  Checking {len(df):,} rows …")
@@ -91,13 +90,15 @@ def filter_corrupted(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
         corrupted, reason = _is_corrupted(row["image_path"], row["mask_path"])
         if corrupted:
             if reason.endswith("_not_found") and not SKIP_MISSING:
-                keep.append(idx)           # keep row, just log it
+                keep.append(idx)  # keep row, just log it
             else:
-                removed.append({
-                    "index"     : int(idx),
-                    "image_path": row["image_path"],
-                    "reason"    : reason,
-                })
+                removed.append(
+                    {
+                        "index": int(idx),
+                        "image_path": row["image_path"],
+                        "reason": reason,
+                    }
+                )
         else:
             keep.append(idx)
 
@@ -112,7 +113,7 @@ def filter_corrupted(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
 # STEP 3 — Class Imbalance Report
 def class_imbalance_report(df: pd.DataFrame) -> dict:
     counts = df["mask"].value_counts().to_dict()
-    total  = len(df)
+    total = len(df)
 
     n0 = counts.get(0, 0)
     n1 = counts.get(1, 0)
@@ -124,10 +125,10 @@ def class_imbalance_report(df: pd.DataFrame) -> dict:
     cw1 = round(total / (2 * n1), 4) if n1 else None
 
     if ratio < 1.5:
-        severity    = "LOW"
+        severity = "LOW"
         suggestions = ["Dataset is well-balanced. No special action required."]
     elif ratio < 3.0:
-        severity    = "MODERATE"
+        severity = "MODERATE"
         suggestions = [
             f"Pass class_weight={{0: {cw0}, 1: {cw1}}} to model.fit().",
             "Apply random oversampling on the minority class.",
@@ -135,7 +136,7 @@ def class_imbalance_report(df: pd.DataFrame) -> dict:
             "Evaluate with F1-score / PR-AUC, not just accuracy.",
         ]
     else:
-        severity    = "SEVERE"
+        severity = "SEVERE"
         suggestions = [
             "Use focal loss instead of binary cross-entropy.",
             "Oversample minority class with augmentation (flip, rotate, crop).",
@@ -145,15 +146,21 @@ def class_imbalance_report(df: pd.DataFrame) -> dict:
 
     report = {
         "class_summary": {
-            "0": {"label": "No Tumor", "count": n0,
-                  "percentage": round(100 * n0 / total, 2)},
-            "1": {"label": "Tumor Present", "count": n1,
-                  "percentage": round(100 * n1 / total, 2)},
+            "0": {
+                "label": "No Tumor",
+                "count": n0,
+                "percentage": round(100 * n0 / total, 2),
+            },
+            "1": {
+                "label": "Tumor Present",
+                "count": n1,
+                "percentage": round(100 * n1 / total, 2),
+            },
         },
-        "imbalance_ratio"          : ratio,
-        "severity"                 : severity,
+        "imbalance_ratio": ratio,
+        "severity": severity,
         "recommended_class_weights": {"0": cw0, "1": cw1},
-        "suggestions"              : suggestions,
+        "suggestions": suggestions,
     }
 
     print("\n── Class Imbalance Report ──────────────────────")
@@ -173,28 +180,38 @@ def plot_distribution(counts: dict, out_path: str):
     labels = ["No Tumor\n(mask=0)", "Tumor Present\n(mask=1)"]
     values = [counts.get("0", 0), counts.get("1", 0)]
     colors = ["#4CAF50", "#F44336"]
-    total  = sum(values)
+    total = sum(values)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     fig.suptitle("NeuroVision — Class Distribution", fontsize=14, fontweight="bold")
 
     # Bar
-    bars = axes[0].bar(labels, values, color=colors, edgecolor="white",
-                       linewidth=1.5, width=0.5)
+    bars = axes[0].bar(
+        labels, values, color=colors, edgecolor="white", linewidth=1.5, width=0.5
+    )
     axes[0].set_title("Sample Count per Class")
     axes[0].set_ylabel("Number of Samples")
     axes[0].spines[["top", "right"]].set_visible(False)
     for bar, val in zip(bars, values):
-        axes[0].text(bar.get_x() + bar.get_width() / 2,
-                     bar.get_height() + 30,
-                     f"{val:,}\n({100*val/total:.1f}%)",
-                     ha="center", va="bottom", fontsize=11, fontweight="bold")
+        axes[0].text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 30,
+            f"{val:,}\n({100*val/total:.1f}%)",
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
+        )
     axes[0].set_ylim(0, max(values) * 1.2)
 
     # Pie
     _, _, autotexts = axes[1].pie(
-        values, labels=labels, colors=colors, autopct="%1.1f%%",
-        startangle=90, pctdistance=0.75,
+        values,
+        labels=labels,
+        colors=colors,
+        autopct="%1.1f%%",
+        startangle=90,
+        pctdistance=0.75,
         wedgeprops={"linewidth": 2, "edgecolor": "white"},
     )
     for at in autotexts:
@@ -202,10 +219,13 @@ def plot_distribution(counts: dict, out_path: str):
         at.set_fontweight("bold")
     axes[1].set_title("Class Proportion")
 
-    patches = [mpatches.Patch(color=c, label=f"{l.replace(chr(10), ' ')}: {v:,}")
-               for c, l, v in zip(colors, labels, values)]
-    axes[1].legend(handles=patches, loc="lower center",
-                   bbox_to_anchor=(0.5, -0.12), ncol=2)
+    patches = [
+        mpatches.Patch(color=c, label=f"{l.replace(chr(10), ' ')}: {v:,}")
+        for c, l, v in zip(colors, labels, values)
+    ]
+    axes[1].legend(
+        handles=patches, loc="lower center", bbox_to_anchor=(0.5, -0.12), ncol=2
+    )
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
@@ -258,8 +278,8 @@ def main():
         chart_path,
     )
 
-    print(f"\n✅  All outputs saved to  ./{OUTPUT_DIR}/\n") 
+    print(f"\n✅  All outputs saved to  ./{OUTPUT_DIR}/\n")
 
 
-if __name__ == "__main__": 
-    main() 
+if __name__ == "__main__":
+    main()

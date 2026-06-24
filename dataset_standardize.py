@@ -53,20 +53,29 @@ import cv2
 warnings.filterwarnings("ignore")
 
 # PATHS / PARAMS  (all relative to project root)
-CSV_PATH       = "data_mask.csv"            # source manifest in the repo root
-IMG_ROOT       = "./"                        # images live as ./TCGA_xxx/TCGA_xxx_1.tif
-OUTPUT_DIR     = "dataset_standardized"      # standardized images + masks go here
-REPORT_DIR     = "dataset_reports"           # reuse the existing reports folder
-MANIFEST_PATH  = os.path.join(os.getcwd(), OUTPUT_DIR, "data_mask_standardized.csv")
+CSV_PATH = "data_mask.csv"  # source manifest in the repo root
+IMG_ROOT = "./"  # images live as ./TCGA_xxx/TCGA_xxx_1.tif
+OUTPUT_DIR = "dataset_standardized"  # standardized images + masks go here
+REPORT_DIR = "dataset_reports"  # reuse the existing reports folder
+MANIFEST_PATH = os.path.join(os.getcwd(), OUTPUT_DIR, "data_mask_standardized.csv")
 
-TARGET_SIZE    = (256, 256)   # canonical resolution as (width, height) — matches model input
-IMAGE_EXT      = ".png"       # canonical lossless on-disk format
-MASK_THRESHOLD = 127          # >= this -> foreground when binarizing masks
+TARGET_SIZE = (
+    256,
+    256,
+)  # canonical resolution as (width, height) — matches model input
+IMAGE_EXT = ".png"  # canonical lossless on-disk format
+MASK_THRESHOLD = 127  # >= this -> foreground when binarizing masks
 
 # canonical manifest columns, in order
 MANIFEST_COLUMNS = [
-    "patient_id", "slice", "image_path", "mask_path",
-    "mask", "original_mask", "std_image_path", "std_mask_path",
+    "patient_id",
+    "slice",
+    "image_path",
+    "mask_path",
+    "mask",
+    "original_mask",
+    "std_image_path",
+    "std_mask_path",
 ]
 
 
@@ -127,13 +136,13 @@ def standardize_image(img: np.ndarray, target_size=TARGET_SIZE) -> np.ndarray:
     if img is None:
         raise ValueError("standardize_image received None")
 
-    if img.ndim == 2:                                  # grayscale
+    if img.ndim == 2:  # grayscale
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    elif img.ndim == 3 and img.shape[2] == 1:          # single-channel 3D
+    elif img.ndim == 3 and img.shape[2] == 1:  # single-channel 3D
         img = cv2.cvtColor(img[:, :, 0], cv2.COLOR_GRAY2RGB)
-    elif img.ndim == 3 and img.shape[2] == 4:          # BGRA / RGBA
+    elif img.ndim == 3 and img.shape[2] == 4:  # BGRA / RGBA
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
-    elif img.ndim == 3 and img.shape[2] == 3:          # cv2 loads BGR
+    elif img.ndim == 3 and img.shape[2] == 3:  # cv2 loads BGR
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     else:
         raise ValueError(f"unsupported image shape {img.shape}")
@@ -149,8 +158,9 @@ def standardize_image(img: np.ndarray, target_size=TARGET_SIZE) -> np.ndarray:
     return img
 
 
-def standardize_mask(mask: np.ndarray, target_size=TARGET_SIZE,
-                     threshold=MASK_THRESHOLD) -> np.ndarray:
+def standardize_mask(
+    mask: np.ndarray, target_size=TARGET_SIZE, threshold=MASK_THRESHOLD
+) -> np.ndarray:
     """
     Normalize one mask to canonical (H, W) single-channel binary {0, 255}.
 
@@ -162,12 +172,13 @@ def standardize_mask(mask: np.ndarray, target_size=TARGET_SIZE,
         raise ValueError("standardize_mask received None")
 
     if mask.ndim == 3:
-        mask = mask[:, :, 0]                 # collapse stray channels
+        mask = mask[:, :, 0]  # collapse stray channels
     if mask.dtype != np.uint8:
         mask = _to_uint8(mask)
 
-    mask = cv2.resize(mask, (target_size[0], target_size[1]),
-                      interpolation=cv2.INTER_NEAREST)
+    mask = cv2.resize(
+        mask, (target_size[0], target_size[1]), interpolation=cv2.INTER_NEAREST
+    )
     _, binar = cv2.threshold(mask, threshold, 255, cv2.THRESH_BINARY)
     return binar.astype(np.uint8)
 
@@ -241,8 +252,13 @@ def standardize_manifest(df: pd.DataFrame):
 
 
 # STEP 2 — Pixel standardization (needs the image files on disk)
-def process_pixels(df: pd.DataFrame, img_root=IMG_ROOT, out_dir=OUTPUT_DIR,
-                   target_size=TARGET_SIZE, mask_threshold=MASK_THRESHOLD):
+def process_pixels(
+    df: pd.DataFrame,
+    img_root=IMG_ROOT,
+    out_dir=OUTPUT_DIR,
+    target_size=TARGET_SIZE,
+    mask_threshold=MASK_THRESHOLD,
+):
     """
     Standardize image + mask pixels for every row whose files exist.
     Writes standardized copies under `out_dir` and returns
@@ -256,7 +272,9 @@ def process_pixels(df: pd.DataFrame, img_root=IMG_ROOT, out_dir=OUTPUT_DIR,
     std_imgs, std_masks, labels = [], [], []
 
     print("\n── Pixel Standardization ───────────────────────")
-    print(f"  Target resolution : {target_size[0]}x{target_size[1]}  | format: {IMAGE_EXT} | channels: 3 | dtype: uint8")
+    print(
+        f"  Target resolution : {target_size[0]}x{target_size[1]}  | format: {IMAGE_EXT} | channels: 3 | dtype: uint8"
+    )
     print(f"  Scanning {len(df):,} rows …")
 
     for _, row in df.iterrows():
@@ -311,7 +329,9 @@ def process_pixels(df: pd.DataFrame, img_root=IMG_ROOT, out_dir=OUTPUT_DIR,
         "uniform_channels": len(shapes) <= 1,
         "uniform_dtype": len(dtypes) <= 1,
         "resolution": res if processed else None,
-        "channels": (shapes.pop()[2] if (processed and shapes) else (3 if processed else None)),
+        "channels": (
+            shapes.pop()[2] if (processed and shapes) else (3 if processed else None)
+        ),
         "dtype": (next(iter(dtypes)) if dtypes else None),
     }
 
@@ -329,10 +349,14 @@ def process_pixels(df: pd.DataFrame, img_root=IMG_ROOT, out_dir=OUTPUT_DIR,
     print(f"  Missing-file rows     : {missing:,}")
     print(f"  Mask labels corrected : {label_corrected:,}")
     if processed:
-        print(f"  Consistency           : resolution={consistency['uniform_resolution']} "
-              f"channels={consistency['uniform_channels']} dtype={consistency['uniform_dtype']}")
+        print(
+            f"  Consistency           : resolution={consistency['uniform_resolution']} "
+            f"channels={consistency['uniform_channels']} dtype={consistency['uniform_dtype']}"
+        )
     else:
-        print("  (no image files found locally — pixel step skipped, manifest still standardized)")
+        print(
+            "  (no image files found locally — pixel step skipped, manifest still standardized)"
+        )
 
     return df, summary
 
