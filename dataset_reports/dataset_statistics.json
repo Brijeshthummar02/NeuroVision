@@ -1,0 +1,15 @@
+{
+  "total_samples": 3929,
+  "unique_patients": 110,
+  "mask_distribution": {
+    "0": 2556,
+    "1": 1373
+  },
+  "patients_per_class": {
+    "0": 110,
+    "1": 89
+  },
+  "duplicate_image_paths": 0,
+  "empty_image_path_rows": 0,
+  "invalid_mask_values": 0
+}

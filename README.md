@@ -14,6 +14,7 @@ https://github.com/user-attachments/assets/a84f0117-efd7-4e01-a3e4-4da48b419d1a
 ![License](https://img.shields.io/badge/License-MIT-brightgreen)
 ![Accuracy](https://img.shields.io/badge/Accuracy-99%25+-success)
 ![Dice](https://img.shields.io/badge/Dice_Score-0.94+-blue)
+[![codecov](https://codecov.io/github/Brijeshthummar02/NeuroVision/graph/badge.svg?token=EW47CHMM7R)](https://codecov.io/github/Brijeshthummar02/NeuroVision)
 
 > ⚠️ **Research use only.** This project is not intended for clinical diagnosis. It has not undergone FDA/CE validation or regulatory review.
 
@@ -208,6 +209,8 @@ All augmentations are applied during training only, tuned specifically for MRI c
 | Class balance | ~50% tumor / ~50% healthy |
 
 ### Download
+
+📘 For the complete project setup, troubleshooting, and testing instructions, please refer to `SETUP.md`.
 
 The dataset and pre-trained model weights are hosted on Google Drive. Pick whichever works for you:
 
@@ -410,14 +413,12 @@ image_ids, masks, has_mask = prediction(test_df, model, model_seg, use_tta=False
 
 ## Contributors
 
-<a href="https://github.com/Ashwitha-Ramesh"><img src="https://github.com/Ashwitha-Ramesh.png" width="48px" title="Ashwitha-Ramesh" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/LIANNAKA"><img src="https://github.com/LIANNAKA.png" width="48px" title="LIANNAKA" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/Sujan075"><img src="https://github.com/Sujan075.png" width="48px" title="Sujan075" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/bhavyapandiya29"><img src="https://github.com/bhavyapandiya29.png" width="48px" title="bhavyapandiya29" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/itsdakshjain"><img src="https://github.com/itsdakshjain.png" width="48px" title="itsdakshjain" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/jamunatg2006-sys"><img src="https://github.com/jamunatg2006-sys.png" width="48px" title="jamunatg2006-sys" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/kadiashailee-devias"><img src="https://github.com/kadiashailee-devias.png" width="48px" title="kadiashailee-devias" style="border-radius:50%;margin:4px;" /></a>
-<a href="https://github.com/shambavi2007"><img src="https://github.com/shambavi2007.png" width="48px" title="shambavi2007" style="border-radius:50%;margin:4px;" /></a>
+<!-- CONTRIBUTORS_START -->
+<a href="https://github.com/Ashwitha-Ramesh"><img src="https://github.com/Ashwitha-Ramesh.png" width="50px" loading="lazy" title="Ashwitha-Ramesh" style="border-radius:50%;margin:5px;" alt="Ashwitha-Ramesh" /></a><a href="https://github.com/LIANNAKA"><img src="https://github.com/LIANNAKA.png" width="50px" loading="lazy" title="LIANNAKA" style="border-radius:50%;margin:5px;" alt="LIANNAKA" /></a><a href="https://github.com/RaghuveerSingh05"><img src="https://github.com/RaghuveerSingh05.png" width="50px" loading="lazy" title="RaghuveerSingh05" style="border-radius:50%;margin:5px;" alt="RaghuveerSingh05" /></a><a href="https://github.com/RutujaGharat-11"><img src="https://github.com/RutujaGharat-11.png" width="50px" loading="lazy" title="RutujaGharat-11" style="border-radius:50%;margin:5px;" alt="RutujaGharat-11" /></a><a href="https://github.com/Sujan075"><img src="https://github.com/Sujan075.png" width="50px" loading="lazy" title="Sujan075" style="border-radius:50%;margin:5px;" alt="Sujan075" /></a><a href="https://github.com/aarushisingh236"><img src="https://github.com/aarushisingh236.png" width="50px" loading="lazy" title="aarushisingh236" style="border-radius:50%;margin:5px;" alt="aarushisingh236" /></a><a href="https://github.com/aasheeshhh"><img src="https://github.com/aasheeshhh.png" width="50px" loading="lazy" title="aasheeshhh" style="border-radius:50%;margin:5px;" alt="aasheeshhh" /></a><a href="https://github.com/bhavyapandiya29"><img src="https://github.com/bhavyapandiya29.png" width="50px" loading="lazy" title="bhavyapandiya29" style="border-radius:50%;margin:5px;" alt="bhavyapandiya29" /></a><a href="https://github.com/geetanunakani"><img src="https://github.com/geetanunakani.png" width="50px" loading="lazy" title="geetanunakani" style="border-radius:50%;margin:5px;" alt="geetanunakani" /></a><a href="https://github.com/itsdakshjain"><img src="https://github.com/itsdakshjain.png" width="50px" loading="lazy" title="itsdakshjain" style="border-radius:50%;margin:5px;" alt="itsdakshjain" /></a><a href="https://github.com/jamunatg2006-sys"><img src="https://github.com/jamunatg2006-sys.png" width="50px" loading="lazy" title="jamunatg2006-sys" style="border-radius:50%;margin:5px;" alt="jamunatg2006-sys" /></a><a href="https://github.com/jiya2401"><img src="https://github.com/jiya2401.png" width="50px" loading="lazy" title="jiya2401" style="border-radius:50%;margin:5px;" alt="jiya2401" /></a><a href="https://github.com/kadiashailee-devias"><img src="https://github.com/kadiashailee-devias.png" width="50px" loading="lazy" title="kadiashailee-devias" style="border-radius:50%;margin:5px;" alt="kadiashailee-devias" /></a><a href="https://github.com/mahakagarwal7"><img src="https://github.com/mahakagarwal7.png" width="50px" loading="lazy" title="mahakagarwal7" style="border-radius:50%;margin:5px;" alt="mahakagarwal7" /></a><a href="https://github.com/shambavi2007"><img src="https://github.com/shambavi2007.png" width="50px" loading="lazy" title="shambavi2007" style="border-radius:50%;margin:5px;" alt="shambavi2007" /></a><a href="https://github.com/udham2511"><img src="https://github.com/udham2511.png" width="50px" loading="lazy" title="udham2511" style="border-radius:50%;margin:5px;" alt="udham2511" /></a>
+<!-- CONTRIBUTORS_END -->
+
+Updates automatically as new contributors merge pull requests. 
+Want to see your avatar here? start contributing.
 
 ---
 

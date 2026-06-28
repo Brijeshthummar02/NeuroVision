@@ -1,5 +1,7 @@
 venv/
 __pycache__/
+*.py[cod]
+*$py.class
 *.pyc
 .env
 .idea/
@@ -19,3 +21,15 @@ neuroscan_data.json
 # User-uploaded scan images
 uploads/
 scan_history/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Pytest
+.pytest_cache/
+
+# Test results
+junit.xml
+test_results/
