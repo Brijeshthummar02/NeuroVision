@@ -2,6 +2,12 @@
 
 Brain tumor detection and segmentation from MRI scans using a two-stage deep learning pipeline — EfficientNetB4 for classification, Attention ResUNet with CBAM + ASPP for segmentation.
 
+
+## Demo 
+
+
+https://github.com/user-attachments/assets/a84f0117-efd7-4e01-a3e4-4da48b419d1a
+
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python)
 ![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-orange?logo=tensorflow)
 ![Flask](https://img.shields.io/badge/Flask-2.x-green?logo=flask)
