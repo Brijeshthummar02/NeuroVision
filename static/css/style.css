@@ -15803,3 +15803,108 @@ section {
         transform: rotate(90deg);
     }
 }
+
+/* Dummy Weights Banner styling */
+.dummy-weights-banner {
+    background-color: #fef3c7;
+    border-bottom: 1px solid #f59e0b;
+    color: #92400e;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    font-family: var(--font-primary);
+    position: relative;
+    z-index: 1000;
+}
+
+.dark-theme .dummy-weights-banner {
+    background-color: #78350f;
+    border-bottom: 1px solid #f59e0b;
+    color: #fef3c7;
+}
+
+.dummy-weights-banner .banner-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.dummy-weights-banner .banner-icon {
+    color: #d97706;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.dummy-weights-banner .banner-text a {
+    color: #3b82f6;
+    text-decoration: underline;
+    font-weight: 600;
+}
+
+.dark-theme .dummy-weights-banner .banner-text a {
+    color: #60a5fa;
+}
+
+/* Patient & Scan Info Section (DICOM) */
+.patient-info-section {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+}
+
+.dark-theme .patient-info-section {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--gray-700);
+}
+
+.patient-info-section .patient-info-title {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: var(--planetary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dark-theme .patient-info-section .patient-info-title {
+    color: var(--universe);
+}
+
+.patient-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.patient-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.dark-theme .patient-info-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.patient-info-item .info-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    font-weight: 500;
+}
+
+.patient-info-item .info-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.dark-theme .patient-info-item .info-value {
+    color: var(--gray-200);
+}

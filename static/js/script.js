@@ -1,7 +1,7 @@
 // NeuroScan AI - Interactive JavaScript
 
 // ==================== Configuration ====================
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = window.location.origin;
 
 // ==================== Theme ====================
 const savedTheme = localStorage.getItem('theme');
@@ -235,15 +235,15 @@ function validateAndPreviewFile(file) {
     }
 
     // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff'];
-    const validExtensions = ['.jpg', '.jpeg', '.png', '.tif', '.tiff'];
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'application/dicom', 'application/octet-stream'];
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dcm'];
     
     const fileName = file.name.toLowerCase();
     const isValidType = validTypes.includes(file.type) || 
                        validExtensions.some(ext => fileName.endsWith(ext));
     
     if (!isValidType) {
-        showNotification('Please upload a valid image file (JPG, PNG, TIF, TIFF)', 'error');
+        showNotification('Please upload a valid image file (JPG, PNG, TIF, TIFF, DCM)', 'error');
         return;
     }
     
@@ -260,9 +260,15 @@ function validateAndPreviewFile(file) {
 
 function previewImage(file) {
     const reader = new FileReader();
+    const isDicom = file.name.toLowerCase().endsWith('.dcm');
     
     reader.onload = (e) => {
-        elements.previewImage.src = e.target.result;
+        if (isDicom) {
+            // Render a target scanner SVG placeholder for DICOM files since raw binary is not directly viewable in browser
+            elements.previewImage.src = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSIjMzM0RUFDIj48cGF0aCBkPSJNMjU2IDBDMTE0LjYgMCAwIDExNC42IDAgMjU2czExNC42IDI1NiAyNTYgMjU2IDI1Ni0xMTQuNiAyNTYtMjU2UzM5Ny40IDAgMjU2IDB6bTAgNDY0Yy0xMTQuNyAwLTIwOC05My4zLTIwOC0yMDhTMTQxLjMgNDggMjU2IDQ4czIwOCA5My4zIDIwOCAyMDgtOTMuMyAyMDgtMjA4IDIwOHoiLz48cGF0aCBkPSJNMjU2IDkwYy05MS42IDAtMTY2IDc0LjQtMTY2IDE2NnM3NC40IDE2NiAxNjYgMTY2IDE2Ni03NC40IDE2Ni0xNjZTMzQ3LjYgOTAgMjU2IDkwem0xMTEuMyAxOTUuNWwtODAuNCA0MC4xIDQwLjEgODAuNGMtMTYuNiAxMC4xLTM1LjYgMTUuOS01NSAxNS45LTQ4LjYgMC04OC4xLTM5LjUtODguMS04OC4xczM5LjUtODguMSA4OC4xLTg4LjFjMTkuNCAwIDM4LjQgNS44IDU1IDE1LjlsLTQwLjEgODAuNCA4MC40LTQwLjFjNi43IDExLjggMTAuMiAyNSAxMC4yIDM4LjcgMCAxMy43LTMuNSAyNi45LTEwLjIgMzguN3oiLz48L3N2Zz4=`;
+        } else {
+            elements.previewImage.src = e.target.result;
+        }
         elements.uploadArea.style.display = 'none';
         elements.imagePreview.style.display = 'block';
         setAnalyzeControlsLoading(false);
@@ -782,6 +788,43 @@ function generateResultsHTML(results) {
                     ` : ''}
                 </div>
         `;
+        
+        // Render Patient & Scan info if DICOM metadata exists
+        if (report.patient_info) {
+            const pInfo = report.patient_info;
+            html += `
+                <!-- Patient & Scan Metadata (DICOM) -->
+                <div class="patient-info-section">
+                    <h4 class="patient-info-title"><i class="fas fa-id-card"></i> Patient & Scan Metadata (DICOM)</h4>
+                    <div class="patient-info-grid">
+                        <div class="patient-info-item">
+                            <span class="info-label">Patient Age</span>
+                            <span class="info-value">${pInfo.patient_age || 'N/A'}</span>
+                        </div>
+                        <div class="patient-info-item">
+                            <span class="info-label">Patient Gender</span>
+                            <span class="info-value">${pInfo.patient_sex || 'N/A'}</span>
+                        </div>
+                        <div class="patient-info-item">
+                            <span class="info-label">Imaging Modality</span>
+                            <span class="info-value">${pInfo.modality || 'N/A'}</span>
+                        </div>
+                        <div class="patient-info-item">
+                            <span class="info-label">Field Strength</span>
+                            <span class="info-value">${pInfo.magnetic_field_strength || 'N/A'}</span>
+                        </div>
+                        <div class="patient-info-item">
+                            <span class="info-label">Scanning Sequence</span>
+                            <span class="info-value">${pInfo.scanning_sequence || 'N/A'}</span>
+                        </div>
+                        <div class="patient-info-item">
+                            <span class="info-label">Manufacturer</span>
+                            <span class="info-value">${pInfo.manufacturer || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
         if (hasTumor && chars.detected) {
             const size = chars.estimated_size || {};
