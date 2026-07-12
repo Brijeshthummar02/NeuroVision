@@ -33,7 +33,7 @@
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
 
     <!-- Custom CSS (blocking — intentional: sets colours before paint) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.0.1">
     <!-- Performance optimisation layer — must load after style.css -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/performance.css') }}">
 </head>
@@ -91,8 +91,23 @@
         </div>
     </nav>
     <main id="main-content">
+        
+        <!-- Dummy Weights Warning Banner -->
+        {% if dummy_weights %}
+        <div class="dummy-weights-banner">
+            <div class="container">
+                <div class="banner-content">
+                    <i class="fas fa-exclamation-triangle banner-icon"></i>
+                    <div class="banner-text">
+                        <strong>Demo Mode (Untrained Models):</strong> The application is currently using randomly-initialized dummy weights. Predictions will be random (around 50% confidence). To enable real diagnostics, please download the trained weights from the <a href="https://drive.google.com/file/d/1FsuQvdxakt4AYcjA_D06la4fJ2kKxA9E/view?usp=sharing" target="_blank">Google Drive ZIP</a> or <a href="https://drive.google.com/drive/folders/13_EYULCrG8GIAvfSmaWXzFhIvfn_udYh" target="_blank">Google Drive Folder</a> and replace the weights files in the project root.
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
     <!-- Hero Section -->
+
     <section id="home" class="hero-section">
         <div class="hero-background">
             <div class="blob blob-1"></div>
@@ -967,7 +982,7 @@
                                 <span class="chip active">PNG</span>
                                 <span class="chip active">TIFF</span>
                                 <span class="chip active">TIF</span>
-                                <span class="chip coming">DICOM</span>
+                                <span class="chip active">DICOM</span>
                             </div>
                         </div>
 
@@ -1237,7 +1252,7 @@
                             </div>
 
                             <div class="upload-zone-v2" id="uploadArea">
-                                <input type="file" id="fileInput" accept="image/*,.tif,.tiff" hidden>
+                                <input type="file" id="fileInput" accept="image/*,.tif,.tiff,.dcm" hidden>
                                 
                                 <div class="upload-visual">
                                     <div class="upload-animation">
@@ -1268,6 +1283,7 @@
                                     <span class="format-badge"><i class="fas fa-check"></i> PNG</span>
                                     <span class="format-badge"><i class="fas fa-check"></i> TIF</span>
                                     <span class="format-badge"><i class="fas fa-check"></i> TIFF</span>
+                                    <span class="format-badge"><i class="fas fa-check"></i> DCM</span>
                                 </div>
                             </div>
 
@@ -3888,7 +3904,7 @@ window.addEventListener('resize', function() {
 });
     </script>
     <!-- Custom JavaScript with cache busting -->
-    <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}?v=1.0.1" defer></script>
     
 </body>
 </html>

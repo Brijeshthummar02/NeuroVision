@@ -17,6 +17,8 @@ REQUIRED_ENV_VARS = [
 for key in REQUIRED_ENV_VARS:
     os.environ.setdefault(key, "test")
 
+os.environ.setdefault("TESTING", "true")
+
 
 def _install_tensorflow_stub():
     if importlib.util.find_spec("tensorflow") is not None:
@@ -163,6 +165,7 @@ def app_state(app_module, monkeypatch, tmp_path):
     app_module.app.config["SCAN_HISTORY_FOLDER"] = str(history_dir)
 
     app_module.models_loaded = True
+    app_module.models_load_attempted = True
     app_module.classification_models = []
     app_module.segmentation_models = []
     app_module.memory_storage = {"users": {}, "scan_history": {}}

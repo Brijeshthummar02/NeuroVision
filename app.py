@@ -51,6 +51,8 @@ import uuid
 import hashlib
 from datetime import datetime
 from functools import wraps
+import threading
+import pydicom
 from werkzeug.utils import secure_filename
 from pymongo import MongoClient
 from bson import ObjectId
@@ -63,19 +65,62 @@ from utilities import (
     iou_score, sensitivity, specificity, precision_metric,
     predict_with_tta_classification, predict_with_tta_segmentation
 )
+import logging
+from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_caching import Cache
+from flask_limiter.errors import RateLimitExceeded
+
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+)
+logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
+
+if os.getenv('TESTING', 'false').lower() == 'true':
+    app.config['TESTING'] = True
+if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
+    app.config['DEBUG'] = True
+    app.debug = True
+
+# Security Headers - disable force_https on local runs to allow HTTP access
+_force_https = os.getenv('FORCE_HTTPS', 'false').lower() == 'true'
+Talisman(app, content_security_policy=None, force_https=_force_https)
+
+# Rate Limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+# Caching
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})
+
 # Restrict CORS to explicit origins — set CORS_ORIGINS in .env (comma-separated)
-_cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000').split(',')
+_cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000').split(',')
 CORS(app, supports_credentials=True, origins=[o.strip() for o in _cors_origins])
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
+
+@app.context_processor
+def inject_dummy_weights():
+    return {
+        'dummy_weights': os.path.exists('dummy_weights_marker.txt')
+    }
+
 
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SCAN_HISTORY_FOLDER'] = 'scan_history'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'tif', 'tiff', 'dcm'}
 app.config['USE_TTA'] = True  # Enable Test Time Augmentation for higher accuracy
 app.config['USE_ENSEMBLE'] = True  # Enable ensemble predictions
 app.config['CONFIDENCE_THRESHOLD'] = 0.5  # Minimum confidence for tumor detection
@@ -250,7 +295,18 @@ def get_custom_objects():
         'iou_score': iou_score,
         'sensitivity': sensitivity,
         'specificity': specificity,
-        'precision_metric': precision_metric
+        'precision_metric': precision_metric,
+        # Custom-namespaced versions for Keras serialization compatibility
+        'Custom>tversky': tversky,
+        'Custom>tversky_loss': tversky_loss,
+        'Custom>focal_tversky': focal_tversky,
+        'Custom>dice_coefficient': dice_coefficient,
+        'Custom>dice_loss': dice_loss,
+        'Custom>bce_dice_loss': bce_dice_loss,
+        'Custom>iou_score': iou_score,
+        'Custom>sensitivity': sensitivity,
+        'Custom>specificity': specificity,
+        'Custom>precision_metric': precision_metric
     }
 
 
@@ -258,6 +314,9 @@ def load_models():
     """Load all pre-trained classification and segmentation models for ensemble"""
     global classification_model, segmentation_model, secondary_classifier, secondary_segmentation
     global classification_models, segmentation_models, models_loaded
+    
+    if models_loaded:
+        return True
     
     custom_objects = get_custom_objects()
     
@@ -271,7 +330,8 @@ def load_models():
             json_savedModel = json_file.read()
         json_savedModel = json_savedModel.replace('"class_name": "Model"', '"class_name": "Functional"')
         classification_model = tf.keras.models.model_from_json(json_savedModel, custom_objects=custom_objects)
-        classification_model.load_weights('weights.hdf5')
+        _c_weights = 'weights.weights.h5' if os.path.exists('weights.weights.h5') else 'weights.hdf5'
+        classification_model.load_weights(_c_weights)
         # Compile EXACTLY like notebook for consistent inference
         classification_model.compile(
             loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
@@ -287,12 +347,40 @@ def load_models():
         print("✓ Primary classification model loaded successfully")
         
         # ============================================================
-        # LOAD SECONDARY CLASSIFICATION MODEL (classifier-resnet-weights.keras)
+        # LOAD SECONDARY CLASSIFICATION MODEL
         # ============================================================
-        if os.path.exists('classifier-resnet-weights.keras'):
+        _c_alt_weights = None
+        for w_file in ['classifier-resnet-weights.keras', 'classifier-resnet-model.weights.h5', 'classifier-resnet-model.hdf5']:
+            if os.path.exists(w_file):
+                _c_alt_weights = w_file
+                break
+
+        if os.path.exists('classifier-resnet-model.json') and _c_alt_weights:
             print("Loading secondary classification model...")
             try:
-                # Try loading the full model directly
+                with open('classifier-resnet-model.json', 'r') as json_file:
+                    json_content = json_file.read()
+                if json_content.strip():  # Check if file is not empty
+                    json_content = json_content.replace('"class_name": "Model"', '"class_name": "Functional"')
+                    secondary_classifier = tf.keras.models.model_from_json(json_content, custom_objects=custom_objects)
+                    secondary_classifier.load_weights(_c_alt_weights)
+                    secondary_classifier.compile(
+                        loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+                        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+                        metrics=[
+                            'accuracy',
+                            tf.keras.metrics.Precision(name='precision'),
+                            tf.keras.metrics.Recall(name='recall'),
+                            tf.keras.metrics.AUC(name='auc')
+                        ]
+                    )
+                    classification_models.append(('Classifier-ResNet-Alt', secondary_classifier))
+                    print("✓ Secondary classification model loaded successfully")
+            except Exception as e:
+                print(f"⚠ Could not load secondary classifier: {str(e)}")
+        elif os.path.exists('classifier-resnet-weights.keras'):
+            print("Loading secondary classification model from full file...")
+            try:
                 secondary_classifier = tf.keras.models.load_model(
                     'classifier-resnet-weights.keras',
                     custom_objects=custom_objects
@@ -301,25 +389,7 @@ def load_models():
                 print("✓ Secondary classification model loaded successfully")
             except Exception as e:
                 print(f"⚠ Could not load secondary classifier: {str(e)}")
-                # Try loading with JSON architecture if available
-                if os.path.exists('classifier-resnet-model.json'):
-                    try:
-                        with open('classifier-resnet-model.json', 'r') as json_file:
-                            json_content = json_file.read()
-                        if json_content.strip():  # Check if file is not empty
-                            json_content = json_content.replace('"class_name": "Model"', '"class_name": "Functional"')
-                            secondary_classifier = tf.keras.models.model_from_json(json_content, custom_objects=custom_objects)
-                            secondary_classifier.load_weights('classifier-resnet-weights.keras')
-                            secondary_classifier.compile(
-                                loss='categorical_crossentropy',
-                                optimizer='adam',
-                                metrics=["accuracy"]
-                            )
-                            classification_models.append(('Classifier-ResNet', secondary_classifier))
-                            print("✓ Secondary classification model loaded with JSON architecture")
-                    except Exception as e2:
-                        print(f"⚠ Secondary classifier not available: {str(e2)}")
-        
+
         # ============================================================
         # LOAD PRIMARY SEGMENTATION MODEL (ResUNet-MRI)
         # Matches notebook: model_seg.compile with focal_tversky and comprehensive metrics
@@ -329,7 +399,8 @@ def load_models():
             json_savedModel = json_file.read()
         json_savedModel = json_savedModel.replace('"class_name": "Model"', '"class_name": "Functional"')
         segmentation_model = tf.keras.models.model_from_json(json_savedModel, custom_objects=custom_objects)
-        segmentation_model.load_weights('weights_seg.hdf5')
+        _s_weights = 'weights_seg.weights.h5' if os.path.exists('weights_seg.weights.h5') else 'weights_seg.hdf5'
+        segmentation_model.load_weights(_s_weights)
         # Compile EXACTLY like notebook for consistent inference
         segmentation_model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),  # Same as notebook
@@ -344,20 +415,25 @@ def load_models():
         )
         segmentation_models.append(('ResUNet-MRI', segmentation_model))
         print("✓ Primary segmentation model loaded successfully")
-        
+
         # ============================================================
         # LOAD SECONDARY SEGMENTATION MODEL (ResUNet-model)
         # ============================================================
         if os.path.exists('ResUNet-model.json'):
-            print("Loading secondary segmentation model...")
-            try:
-                with open('ResUNet-model.json', 'r') as json_file:
-                    json_savedModel = json_file.read()
-                json_savedModel = json_savedModel.replace('"class_name": "Model"', '"class_name": "Functional"')
-                secondary_segmentation = tf.keras.models.model_from_json(json_savedModel, custom_objects=custom_objects)
-                # Use same weights if no separate weights file exists
-                if os.path.exists('weights_seg.hdf5'):
-                    secondary_segmentation.load_weights('weights_seg.hdf5')
+            _s_alt_weights = None
+            for w_file in ['ResUNet-model.weights.h5', 'ResUNet-model.hdf5', 'weights_seg_alt.hdf5']:
+                if os.path.exists(w_file):
+                    _s_alt_weights = w_file
+                    break
+            
+            if _s_alt_weights:
+                print("Loading secondary segmentation model...")
+                try:
+                    with open('ResUNet-model.json', 'r') as json_file:
+                        json_savedModel = json_file.read()
+                    json_savedModel = json_savedModel.replace('"class_name": "Model"', '"class_name": "Functional"')
+                    secondary_segmentation = tf.keras.models.model_from_json(json_savedModel, custom_objects=custom_objects)
+                    secondary_segmentation.load_weights(_s_alt_weights)
                     # Compile EXACTLY like notebook
                     secondary_segmentation.compile(
                         optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
@@ -366,8 +442,11 @@ def load_models():
                     )
                     segmentation_models.append(('ResUNet-Alt', secondary_segmentation))
                     print("✓ Secondary segmentation model loaded successfully")
-            except Exception as e:
-                print(f"⚠ Could not load secondary segmentation: {str(e)}")
+                except Exception as e:
+                    print(f"⚠ Could not load secondary segmentation: {str(e)}")
+            else:
+                print("⚠ Secondary segmentation model skipped (no matching weights file found)")
+
         
         models_loaded = True
         print(f"\n📊 Model Summary:")
@@ -383,6 +462,37 @@ def load_models():
         traceback.print_exc()
         models_loaded = False
         return False
+
+
+# Thread-safe lazy model loading variables
+models_load_attempted = False
+models_load_lock = threading.Lock()
+
+def load_models_lazy():
+    """Lazily load models on the first request to ensure Gunicorn fork-safety"""
+    global models_loaded, models_load_attempted
+    if not models_loaded and not models_load_attempted:
+        with models_load_lock:
+            if not models_loaded and not models_load_attempted:
+                models_load_attempted = True
+                print("Lazy-loading deep learning models inside the worker process...")
+                load_models()
+
+
+
+@app.before_request
+def before_request_func():
+    """Before request handler to trigger lazy model loading for API endpoints"""
+    # Trigger lazy model load only for API paths to keep static page loads fast
+    if request.path.startswith('/api/'):
+        load_models_lazy()
+
+
+# Auto-load database on startup (models are lazy-loaded on demand for Gunicorn fork-safety)
+if not app.config.get('TESTING', False) and os.getenv('TESTING', 'false').lower() != 'true':
+    print("Pre-loading database for server startup (models will load lazily)...")
+    init_mongodb()
+
 
 
 def preprocess_image_classification(img):
@@ -506,7 +616,56 @@ def ensemble_segmentation_predict(img, use_tta=True):
         return predictions[0]
 
 
+def process_dicom_file(filepath):
+    """
+    Read a medical DICOM file, extract available metadata headers,
+    and convert the pixel array into a standard BGR image for model prediction.
+    """
+    ds = pydicom.dcmread(filepath)
+    
+    # Extract metadata safely (fall back to 'N/A' or default if tag is missing)
+    metadata = {
+        'patient_age': getattr(ds, 'PatientAge', 'N/A'),
+        'patient_sex': getattr(ds, 'PatientSex', 'N/A'),
+        'modality': getattr(ds, 'Modality', 'N/A'),
+        'magnetic_field_strength': f"{getattr(ds, 'MagneticFieldStrength', 'N/A')}T" if hasattr(ds, 'MagneticFieldStrength') else 'N/A',
+        'scanning_sequence': getattr(ds, 'ScanningSequence', 'N/A'),
+        'manufacturer': getattr(ds, 'Manufacturer', 'N/A'),
+        'study_date': getattr(ds, 'StudyDate', 'N/A')
+    }
+    
+    # Handle patient_age formatting (e.g. '045Y' -> '45')
+    if metadata['patient_age'] != 'N/A' and isinstance(metadata['patient_age'], str):
+        metadata['patient_age'] = metadata['patient_age'].strip('Y0')
+        if not metadata['patient_age']:
+            metadata['patient_age'] = 'N/A'
+
+    # Retrieve raw pixel array
+    pixel_array = ds.pixel_array.astype(np.float32)
+    
+    # Handle multi-dimensional arrays
+    if len(pixel_array.shape) == 3:
+        if pixel_array.shape[2] == 3:
+            pixel_array = cv2.cvtColor(pixel_array.astype(np.uint8), cv2.COLOR_RGB2GRAY).astype(np.float32)
+        else:
+            # If it is a 3D slice sequence, select the center slice
+            pixel_array = pixel_array[pixel_array.shape[0] // 2]
+            
+    # Scale/normalize pixel array to [0, 255] range
+    p_min, p_max = pixel_array.min(), pixel_array.max()
+    if p_max > p_min:
+        pixel_array_scaled = (pixel_array - p_min) / (p_max - p_min) * 255.0
+    else:
+        pixel_array_scaled = np.zeros_like(pixel_array)
+        
+    # Convert grayscale 2D array to BGR
+    img_bgr = cv2.cvtColor(pixel_array_scaled.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    
+    return img_bgr, metadata
+
+
 def post_process_segmentation(mask, min_area=100):
+
     """
     Post-process segmentation mask to remove noise and small artifacts.
     """
@@ -884,6 +1043,7 @@ def health_check():
 
 
 @app.route('/api/predict', methods=['POST'])
+@limiter.limit("10 per minute")  # Protect heavy ML endpoint
 def predict():
     """Handle image upload and prediction"""
     
@@ -905,7 +1065,7 @@ def predict():
     # Check if file is allowed
     if not allowed_file(file.filename):
         return jsonify({
-            'error': 'Invalid file type. Allowed types: PNG, JPG, JPEG, TIF, TIFF'
+            'error': 'Invalid file type. Allowed types: PNG, JPG, JPEG, TIF, TIFF, DCM'
         }), 400
     
     # Resolve TTA preference: ?tta=false / ?tta=0 / ?tta=no disables TTA for this request
@@ -918,12 +1078,19 @@ def predict():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        # Read and convert original image to PNG for browser compatibility
-        img_original = cv2.imread(filepath)
-        if img_original is None:
-            # Try with PIL for TIFF support
-            img_pil = Image.open(filepath)
-            img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+        # Check if the uploaded file is a DICOM file
+        is_dicom = filename.lower().endswith('.dcm')
+        patient_info = None
+        
+        if is_dicom:
+            img_original, patient_info = process_dicom_file(filepath)
+        else:
+            # Read and convert original image to PNG for browser compatibility
+            img_original = cv2.imread(filepath)
+            if img_original is None:
+                # Try with PIL for TIFF support
+                img_pil = Image.open(filepath)
+                img_original = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
         
         # Convert to PNG and encode as base64
         _, img_buffer = cv2.imencode('.png', img_original)
@@ -938,6 +1105,10 @@ def predict():
         # Add original image to result
         prediction_result['original_image'] = f"data:image/png;base64,{img_base64}"
         
+        # Add DICOM metadata if available
+        if patient_info:
+            prediction_result['detailed_report']['patient_info'] = patient_info
+            
         # Clean up uploaded file (optional)
         # os.remove(filepath)
         
@@ -948,6 +1119,7 @@ def predict():
 
 
 @app.route('/api/stats', methods=['GET'])
+@cache.cached(timeout=60)  # Cache stats for 60 seconds
 def get_stats():
     """Return enhanced project statistics including model information"""
     stats = {
@@ -997,7 +1169,17 @@ def config():
         })
 
 
+@app.errorhandler(RateLimitExceeded)
+def ratelimit_handler(e):
+    """Handle rate limit exceeded errors"""
+    return jsonify({
+        'error': 'Rate limit exceeded',
+        'details': str(e.description)
+    }), 429
+
+
 @app.errorhandler(413)
+
 def too_large(e):
     """Handle file too large error"""
     return jsonify({'error': 'File is too large. Maximum size is 16MB.'}), 413
@@ -1501,24 +1683,27 @@ if __name__ == '__main__':
     # Verify Cloudinary configuration
     print(f"✓ Cloudinary configured (cloud: {os.getenv('CLOUDINARY_CLOUD_NAME')})")
     
+    _debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    _host = os.getenv('FLASK_HOST', '127.0.0.1')  # Bind to localhost only by default
+    _port = int(os.getenv('FLASK_PORT', '5000'))
+
     # Load models
     if load_models():
+        display_host = 'localhost' if _host in ('127.0.0.1', '0.0.0.0') else _host
         print("\n" + "=" * 70)
         print("✓ All models loaded successfully!")
         print(f"✓ Classification ensemble: {len(classification_models)} model(s)")
         print(f"✓ Segmentation ensemble: {len(segmentation_models)} model(s)")
         print("\n🚀 Starting Flask server...")
-        print("📍 Access the application at: http://localhost:5000")
-        print("📊 API Health Check: http://localhost:5000/api/health")
-        print("⚙️  API Configuration: http://localhost:5000/api/config")
-        print("🔐 Authentication: http://localhost:5000/api/auth/status")
+        print(f"📍 Access the application at: http://{display_host}:{_port}")
+        print(f"📊 API Health Check: http://{display_host}:{_port}/api/health")
+        print(f"⚙️  API Configuration: http://{display_host}:{_port}/api/config")
+        print(f"🔐 Authentication: http://{display_host}:{_port}/api/auth/status")
         print("🗄️  Database: MongoDB")
         print("☁️  Image Storage: Cloudinary")
         print("=" * 70)
-        _debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-        _host = os.getenv('FLASK_HOST', '127.0.0.1')  # Bind to localhost only by default
-        _port = int(os.getenv('FLASK_PORT', '5000'))
         app.run(debug=_debug, host=_host, port=_port)
+
     else:
         print("\n❌ Failed to load models. Please check that model files exist.")
         print("Required files:")
