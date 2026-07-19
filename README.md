@@ -325,11 +325,13 @@ MONGO_URI=mongodb+srv://...
 
 ### 5. Run the app
 
+Before starting the application, verify that your dataset has been placed in the project root as described in the **Placing the data** section. Missing dataset folders may prevent training and inference from working correctly.
+
 ```bash
 python app.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000) in your browser.
+Open http://localhost:5000 in your browser.
 
 ---
 
