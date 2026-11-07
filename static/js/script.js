@@ -1873,7 +1873,7 @@ async function viewHistoryScan(scanId) {
             
             // Display the historical results - the scan data is directly in data.scan
             currentResults = data.scan;
-            displayResults(currentResults);
+            showResults(currentResults);
             
             // Scroll to results section
             const resultsSection = document.getElementById('resultsContainer') || document.querySelector('#scan');
